@@ -1,0 +1,14 @@
+.git
+.gitattributes
+.github
+.gitlab-ci.yml
+.idea
+.vscode
+.fastRequest
+.mvn
+mvnw
+mvnw.cmd
+target
+HELP.md
+*.md
+src/test
