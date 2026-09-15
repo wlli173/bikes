@@ -4,5 +4,4 @@ public record UsuarioResponseDTO(
         Long id,
         String username,
         String role
-) {
-}
+) {}

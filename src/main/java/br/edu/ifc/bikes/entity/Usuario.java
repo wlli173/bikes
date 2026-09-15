@@ -1,53 +1,53 @@
 package br.edu.ifc.bikes.entity;
 
-import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.util.Objects;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import javax.management.relation.Role;
+import java.time.LocalDateTime;
+import java.util.Objects;
 
-@Getter @Setter @ToString
+//===lombok
+@Getter
+@Setter
+@ToString
+//===lombok
+
 @Entity
-@Table(name = "usuario")
-
-public class Usuario implements Serializable {
-
+@Table(name = "usuarios")
+public class Usuario implements java.io.Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private long id;
+    private Long id;
 
-    @Column(name = "username",nullable = false, unique = true, length = 100)
+    @Column(name = "username", nullable = false, unique = true, length = 100)
     private String username;
 
     @Column(name = "password", nullable = false)
     private String password;
 
+    //a constante definida no enum passa a ser uma string no bd
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 50)
-    private Role role =  Role.Cliente;
+    @Column(name="role", nullable = false, length = 50)
+    private Role role = Role.CLIENTE;
 
     private LocalDateTime dataCriacao;
-    private LocalDateTime dataAtualizacao;
+    private LocalDateTime dataModificacao;
     private String criadoPor;
-    private String atualizadoPor;
+    private String modificadoPor;
 
     public enum Role {
-        Cliente,
-        ADMIN;
+        ADMIN, CLIENTE;
     }
 
     @Override
     public boolean equals(Object obj) {
-        if(obj == null) return false;
-        if(obj == this) return true;
+        if (obj == null) return false;
+        if (obj == this) return true;
         Usuario usuario = (Usuario) obj;
-        return Objects.equals(id, usuario.getId());
+        return Objects.equals(id, usuario.id);
     }
-
 }

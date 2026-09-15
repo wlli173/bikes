@@ -2,7 +2,7 @@ package br.edu.ifc.bikes.service;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
-import br.edu.ifc.bikes.dto.mappper.UsuarioMapper;
+import br.edu.ifc.bikes.dto.mapper.UsuarioMapper;
 import br.edu.ifc.bikes.entity.Usuario;
 import br.edu.ifc.bikes.repository.UsuarioRepository;
 import jakarta.transaction.Transactional;
@@ -18,32 +18,26 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper usuarioMapper;
 
-    @Transactional
-    public UsuarioResponseDTO create(UsuarioRequestDTO usuario) {
-        return usuarioMapper.toUsuarioResponseDTO(usuarioRepository.save(usuarioMapper.toUsuario(usuario)));
+    public UsuarioResponseDTO create(UsuarioRequestDTO usuarioRequestDTO) {
+        Usuario usuario = usuarioMapper.toUsuario(usuarioRequestDTO);
+        return usuarioMapper.toResponse(usuarioRepository.save(usuario));
     }
 
     @Transactional()
-    public UsuarioResponseDTO getbyId(Long id){
-        return usuarioMapper.toUsuarioResponseDTO(usuarioRepository.findById(id).orElse(null));
+    public UsuarioResponseDTO getById(Long id) {
+        return usuarioMapper.toResponse(usuarioRepository.findById(id).orElse(null));
     }
 
-    @Transactional()
-    public List<UsuarioResponseDTO> getAll(){
-        return usuarioMapper.toUsuarioResponseDTO(usuarioRepository.findAll());
-    }
-
-    @Transactional
-    public UsuarioResponseDTO updatePassword(Long id, String password){
+    public UsuarioResponseDTO updatePassword(Long id, String password) {
         Usuario usuario = usuarioRepository.findById(id).orElse(null);
-
-        if(usuario != null){
+        if (usuario != null){
             usuario.setPassword(password);
-            return usuarioMapper.toUsuarioResponseDTO(usuarioRepository.save(usuario));
+            return usuarioMapper.toResponse(usuarioRepository.save(usuario));
         }
-
         return null;
-
     }
 
+    public List<UsuarioResponseDTO> getAll(){
+        return usuarioMapper.toResponse(usuarioRepository.findAll());
+    }
 }
