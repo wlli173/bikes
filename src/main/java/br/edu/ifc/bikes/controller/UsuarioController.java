@@ -5,12 +5,14 @@ import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
 import br.edu.ifc.bikes.entity.Usuario;
 import br.edu.ifc.bikes.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("api/v1/usuarios")
 @RequiredArgsConstructor
@@ -20,17 +22,20 @@ public class UsuarioController {
 
     @PostMapping
     public ResponseEntity<UsuarioResponseDTO> create(@RequestBody UsuarioRequestDTO usuario) {
+        log.info("Criando usuario username={}", usuario.username());
         UsuarioResponseDTO usuarioCriado  = usuarioService.create(usuario);
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioCriado);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioResponseDTO> getById(@PathVariable Long id) {
+        log.debug("Buscando usuario id={}", id);
         UsuarioResponseDTO usuario = usuarioService.getById(id);
 
         if(usuario != null){
             return ResponseEntity.ok(usuario);
         }else {
+            log.warn("Usuario id={} nao encontrado", id);
             return ResponseEntity.notFound().build();
         }
     }

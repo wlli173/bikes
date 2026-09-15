@@ -1,0 +1,198 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: bikes-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: bikes
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mongodb:
+    image: mongo:6.0.18
+    container_name: bikes-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: bikes-opensearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      action.auto_create_index: "false"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "Bikes_OpenSearch_1"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  graylog:
+    image: graylog/graylog:6.1
+    container_name: bikes-graylog
+    hostname: graylog
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    entrypoint: /usr/bin/tini -- wait-for-it opensearch:9200 -- /docker-entrypoint.sh
+    environment:
+      GRAYLOG_NODE_ID_FILE: /usr/share/graylog/data/config/node-id
+      GRAYLOG_HTTP_BIND_ADDRESS: 0.0.0.0:9000
+      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200
+      GRAYLOG_MONGODB_URI: mongodb://mongodb:27017/graylog
+      GRAYLOG_REPORT_DISABLE_SANDBOX: "true"
+      GRAYLOG_PASSWORD_SECRET: bikeslocalpepper12
+      GRAYLOG_ROOT_PASSWORD_SHA2: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      GRAYLOG_ROOT_TIMEZONE: America/Sao_Paulo
+    ports:
+      - "9000:9000"
+      - "12201:12201/tcp"
+      - "12201:12201/udp"
+    volumes:
+      - graylog_data:/usr/share/graylog/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/9000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  graylog-setup:
+    image: curlimages/curl:8.11.1
+    container_name: bikes-graylog-setup
+    depends_on:
+      graylog:
+        condition: service_healthy
+    restart: "no"
+    volumes:
+      - ./graylog/setup-input.sh:/setup-input.sh:ro
+    entrypoint: ["/bin/sh", "/setup-input.sh"]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bikes-app:local
+    container_name: bikes-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      graylog-setup:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/bikes?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      GRAYLOG_HOST: graylog
+      GRAYLOG_PORT: "12201"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
+    mem_limit: 512m
+    ports:
+      - "8080:8080"
+
+  traffic:
+    image: curlimages/curl:8.11.1
+    container_name: bikes-traffic
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          curl -sS "http://app:8080/api/v1/usuarios" >/dev/null || true
+          curl -sS -o /dev/null "http://app:8080/api/v1/usuarios/999999" || true
+          sleep 5
+        done
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: bikes-prometheus
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: bikes-grafana
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/bikes-jvm-http.json
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
+volumes:
+  mysql_data:
+  mongodb_data:
+  mongodb_config:
+  opensearch_data:
+  graylog_data:
+  prometheus_data:
+  grafana_data:

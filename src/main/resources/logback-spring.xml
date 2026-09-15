@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <springProperty name="appName" source="spring.application.name" defaultValue="bikes"/>
+    <springProperty name="graylogHost" source="graylog.host" defaultValue="localhost"/>
+    <springProperty name="graylogPort" source="graylog.port" defaultValue="12201"/>
+
+    <springProfile name="docker">
+        <appender name="GELF" class="biz.paluch.logging.gelf.logback.GelfLogbackAppender">
+            <host>tcp:${graylogHost}</host>
+            <port>${graylogPort}</port>
+            <version>1.1</version>
+            <facility>${appName}</facility>
+            <extractStackTrace>true</extractStackTrace>
+            <filterStackTrace>true</filterStackTrace>
+            <includeFullMdc>true</includeFullMdc>
+            <additionalFields>application=${appName}</additionalFields>
+            <additionalFieldTypes>application=String</additionalFieldTypes>
+        </appender>
+        <appender name="ASYNC_GELF" class="ch.qos.logback.classic.AsyncAppender">
+            <neverBlock>true</neverBlock>
+            <discardingThreshold>0</discardingThreshold>
+            <queueSize>1024</queueSize>
+            <appender-ref ref="GELF"/>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_GELF"/>
+        </root>
+        <logger name="br.edu.ifc.bikes" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="!docker">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>
