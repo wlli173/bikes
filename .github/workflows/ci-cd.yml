@@ -19,10 +19,12 @@ permissions:
 env:
   REGISTRY: ghcr.io
 
+# Três segmentos em sequência. Cada um só é bem-sucedido depois de
+# confirmar o próprio resultado (testes, imagem/scan, digest no GHCR).
 # Actions fixadas por SHA de commit (proteção contra tags reescritas — supply chain)
 jobs:
   compile-and-test:
-    name: Compilação e Testes
+    name: 1. Compilação e Testes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,6 +41,44 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw -B verify
+
+      - name: Autoverificar testes
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          reports=(target/surefire-reports/*.txt)
+          if (( ${#reports[@]} == 0 )); then
+            echo "::error::Autoverificação falhou: nenhum relatório Surefire em target/surefire-reports"
+            exit 1
+          fi
+          run=0
+          fail=0
+          err=0
+          for f in "${reports[@]}"; do
+            line=$(grep -E 'Tests run: ' "$f" | tail -n 1 || true)
+            if [[ -z "$line" ]]; then
+              echo "::error::Relatório sem resumo de testes: $f"
+              exit 1
+            fi
+            if [[ "$line" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
+              run=$((run + BASH_REMATCH[1]))
+              fail=$((fail + BASH_REMATCH[2]))
+              err=$((err + BASH_REMATCH[3]))
+            else
+              echo "::error::Resumo ilegível em $f: $line"
+              exit 1
+            fi
+          done
+          echo "Tests run: ${run}, Failures: ${fail}, Errors: ${err}"
+          if (( run == 0 || fail > 0 || err > 0 )); then
+            echo "::error::Autoverificação dos testes falhou (run=${run} failures=${fail} errors=${err})"
+            exit 1
+          fi
+          echo "OK: ${run} testes concluídos sem falhas nem erros"
+          {
+            echo "### Autoverificação — testes"
+            echo "Confirmados **${run}** testes, 0 falhas e 0 erros nos relatórios Surefire."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Resumo dos testes
         if: always()
@@ -58,16 +98,16 @@ jobs:
           path: target/surefire-reports/
           retention-days: 7
 
-  build-scan-publish:
-    name: Build, Scan e Publicação da Imagem
+  build-and-scan:
+    name: 2. Build e Scan da Imagem
     needs: compile-and-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
       actions: write
     env:
-      # PRs vindos de forks não têm permissão de escrita no GHCR: apenas build + scan
+      # PRs vindos de forks não têm permissão de escrita no GHCR: a imagem é
+      # construída e escaneada, mas não é exportada para o segmento de publicação
       PUSH_IMAGE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - name: Checkout
@@ -124,6 +164,36 @@ jobs:
           # Relatório informativo: não bloqueia a esteira por CVEs de terceiros
           exit-code: "0"
 
+      - name: Autoverificar build e scan
+        run: |
+          set -euo pipefail
+          if ! docker image inspect bikes:ci >/dev/null; then
+            echo "::error::Autoverificação falhou: imagem bikes:ci ausente após o build"
+            exit 1
+          fi
+          user=$(docker image inspect bikes:ci --format '{{.Config.User}}')
+          entrypoint=$(docker image inspect bikes:ci --format '{{json .Config.Entrypoint}}')
+          if [[ "$user" != "spring:spring" && "$user" != "spring" ]]; then
+            echo "::error::Imagem não executa como usuário spring (user=${user})"
+            exit 1
+          fi
+          if [[ "$entrypoint" != *'"java"'* ]]; then
+            echo "::error::Entrypoint inesperado: ${entrypoint}"
+            exit 1
+          fi
+          if [[ ! -f trivy-report.txt ]]; then
+            echo "::error::Scan Trivy não gerou trivy-report.txt"
+            exit 1
+          fi
+          echo "OK: bikes:ci presente, usuário ${user}, entrypoint ${entrypoint}, relatório Trivy gerado"
+          {
+            echo "### Autoverificação — build e scan"
+            echo "- Imagem \`bikes:ci\` inspecionada no daemon"
+            echo "- Usuário de runtime: \`${user}\`"
+            echo "- Entrypoint: \`${entrypoint}\`"
+            echo "- Relatório Trivy presente (\`trivy-report.txt\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Resumo do scan
         if: always()
         run: |
@@ -142,8 +212,76 @@ jobs:
           path: trivy-report.txt
           retention-days: 7
 
-      - name: Login no GHCR
+      # A imagem publicada é exatamente a que passou no runtime check e no Trivy
+      - name: Exportar imagem verificada
         if: env.PUSH_IMAGE == 'true'
+        run: |
+          set -euo pipefail
+          image="${{ steps.image.outputs.name }}"
+          mkdir -p image-export
+          docker image inspect bikes:ci --format '{{range .RepoTags}}{{println .}}{{end}}' \
+            | grep -F "${image}:" \
+            | tee image-export/tags.txt
+          mapfile -t tags < image-export/tags.txt
+          if (( ${#tags[@]} == 0 )); then
+            echo "::error::Build não produziu tags para ${image}"
+            exit 1
+          fi
+          docker save -o image-export/bikes-image.tar "${tags[@]}"
+          test -s image-export/bikes-image.tar
+          echo "Imagem exportada com ${#tags[@]} tag(s) para o segmento de publicação"
+
+      - name: Enviar imagem ao segmento de publicação
+        if: env.PUSH_IMAGE == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bikes-image
+          path: image-export/
+          retention-days: 1
+          if-no-files-found: error
+          # O tar do docker save já é grande; compressão leve evita minutos extras
+          compression-level: 1
+
+  publish:
+    name: 3. Publicação no GHCR
+    needs: build-and-scan
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    steps:
+      - name: Baixar imagem verificada
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: bikes-image
+          path: image-export
+
+      - name: Carregar imagem
+        run: |
+          set -euo pipefail
+          tarfile=$(find image-export -name 'bikes-image.tar' -print -quit)
+          tagsfile=$(find image-export -name 'tags.txt' -print -quit)
+          if [[ -z "$tarfile" || -z "$tagsfile" || ! -s "$tarfile" ]]; then
+            echo "::error::Artefato da imagem incompleto"
+            exit 1
+          fi
+          docker load -i "$tarfile"
+          cp "$tagsfile" "${RUNNER_TEMP}/tags.txt"
+          echo "TAGS_FILE=${RUNNER_TEMP}/tags.txt" >> "$GITHUB_ENV"
+          image="${REGISTRY}/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            if [[ "$ref" != "${image}:"* ]]; then
+              echo "::error::Tag inesperada no artefato: $ref"
+              exit 1
+            fi
+            docker image inspect "$ref" >/dev/null
+            echo "Carregada: $ref"
+          done < "${RUNNER_TEMP}/tags.txt"
+
+      - name: Login no GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -151,12 +289,105 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publicação (Push)
-        if: env.PUSH_IMAGE == 'true'
         run: |
-          docker push --all-tags "${{ steps.image.outputs.name }}"
+          set -euo pipefail
+          : > "${RUNNER_TEMP}/pushed-digests.txt"
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            docker push "$ref" 2>&1 | tee "${RUNNER_TEMP}/push-out"
+            digest=$(grep -oE 'sha256:[0-9a-f]{64}' "${RUNNER_TEMP}/push-out" | tail -n 1 || true)
+            if [[ -z "$digest" ]]; then
+              echo "::error::Push de ${ref} não informou o digest"
+              exit 1
+            fi
+            printf '%s %s\n' "$ref" "$digest" >> "${RUNNER_TEMP}/pushed-digests.txt"
+            echo "Push aceito: ${ref} (${digest})"
+          done < "$TAGS_FILE"
+          echo "DIGESTS_FILE=${RUNNER_TEMP}/pushed-digests.txt" >> "$GITHUB_ENV"
+
+      - name: Autoverificar publicação no GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image="${REGISTRY}/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          repo_path="${image#ghcr.io/}"
+          registry_token=""
+
+          fetch_manifest() {
+            local auth="$1"
+            rm -f /tmp/ghcr-headers /tmp/ghcr-manifest
+            http=$(curl -sS -D /tmp/ghcr-headers -o /tmp/ghcr-manifest -w "%{http_code}" \
+              -H "Authorization: ${auth}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repo_path}/manifests/${tag}" || true)
+            remote=""
+            if [[ -s /tmp/ghcr-headers ]]; then
+              remote=$(awk 'BEGIN{IGNORECASE=1} /^docker-content-digest:/ {print $2; exit}' /tmp/ghcr-headers | tr -d '\r' || true)
+            fi
+          }
+
+          ensure_registry_token() {
+            if [[ -n "$registry_token" ]]; then
+              return 0
+            fi
+            registry_token=$(curl -fsSL -u "${GITHUB_ACTOR}:${GHCR_TOKEN}" \
+              "https://ghcr.io/token?service=ghcr.io&scope=repository:${repo_path}:pull" \
+              | jq -r '.token // .access_token' || true)
+            if [[ -z "$registry_token" || "$registry_token" == "null" ]]; then
+              echo "::error::Não foi possível obter token de leitura do GHCR"
+              return 1
+            fi
+          }
+
+          fail=0
+          confirmed=0
           {
-            echo "### Imagem publicada"
-            echo '```'
-            echo "${{ steps.meta.outputs.tags }}"
-            echo '```'
+            echo "### Autoverificação — publicação no GHCR"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            tag="${ref##*:}"
+            expected=$(awk -v ref="$ref" '$1 == ref { print $2 }' "$DIGESTS_FILE")
+            if [[ -z "$expected" ]]; then
+              echo "::error::Sem digest registrado no push de ${ref}"
+              fail=1
+              continue
+            fi
+            http="000"
+            remote=""
+            for attempt in 1 2 3 4 5; do
+              fetch_manifest "Bearer ${GHCR_TOKEN}"
+              if [[ "$http" != "200" ]]; then
+                if ! ensure_registry_token; then
+                  exit 1
+                fi
+                fetch_manifest "Bearer ${registry_token}"
+              fi
+              if [[ "$http" == "200" && "$remote" == "$expected" ]]; then
+                break
+              fi
+              echo "Tentativa ${attempt}/5 para ${ref}: HTTP ${http} (esperado=${expected} remoto=${remote:-vazio})"
+              sleep 5
+            done
+            if [[ "$http" != "200" || -z "$remote" ]]; then
+              echo "::error::Tag ${ref} não encontrada no GHCR (HTTP ${http})"
+              fail=1
+              continue
+            fi
+            if [[ "$remote" != "$expected" ]]; then
+              echo "::error::Digest de ${ref} diverge (push=${expected} GHCR=${remote})"
+              fail=1
+              continue
+            fi
+            echo "OK: ${ref} confirmada no GHCR (${remote})"
+            echo "- \`${ref}\` confirmada (\`${remote}\`)" >> "$GITHUB_STEP_SUMMARY"
+            confirmed=$((confirmed + 1))
+          done < "$TAGS_FILE"
+
+          if (( fail != 0 || confirmed == 0 )); then
+            echo "::error::Autoverificação da publicação falhou (${confirmed} tag(s) confirmadas)"
+            exit 1
+          fi
+          echo "Publicação confirmada: ${confirmed} tag(s) no GHCR com o digest devolvido pelo push."
