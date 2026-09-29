@@ -1,0 +1,25 @@
+{
+  "name": "GELF UDP Input",
+  "description": "Input GELF UDP na porta 12201 — provisionado automaticamente",
+  "category": "Inputs",
+  "inputs": [
+    {
+      "title": "GELF UDP Input",
+      "configuration": {
+        "override_source": null,
+        "recv_buffer_size": 262144,
+        "bind_address": "0.0.0.0",
+        "port": 12201,
+        "decompress_size_limit": 8388608
+      },
+      "static_fields": {},
+      "type": "org.graylog2.inputs.gelf.udp.GELFUDPInput",
+      "global": true,
+      "extractors": []
+    }
+  ],
+  "streams": [],
+  "outputs": [],
+  "dashboards": [],
+  "grok_patterns": []
+}

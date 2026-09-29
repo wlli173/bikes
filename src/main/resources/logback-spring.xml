@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ============================================================
+         Console Appender — fallback para funcionar sem Graylog
+         ============================================================ -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ============================================================
+         GELF UDP Appender — envia logs estruturados ao Graylog
+         Host e porta configuráveis via variável de ambiente com default
+         ============================================================ -->
+    <appender name="GELF" class="de.siegmar.logbackgelf.GelfUdpAppender">
+        <graylogHost>${GRAYLOG_HOST:-graylog}</graylogHost>
+        <graylogPort>${GRAYLOG_PORT:-12201}</graylogPort>
+        <maxChunkSize>8192</maxChunkSize>
+        <useCompression>true</useCompression>
+        <encoder class="de.siegmar.logbackgelf.GelfEncoder">
+            <originHost>${HOSTNAME:-bikes-app}</originHost>
+            <includeRawMessage>false</includeRawMessage>
+            <includeMarker>true</includeMarker>
+            <includeMdcData>true</includeMdcData>
+            <includeCallerData>false</includeCallerData>
+            <includeRootCauseData>true</includeRootCauseData>
+            <includeLevelName>true</includeLevelName>
+            <shortMessageLayout class="ch.qos.logback.classic.PatternLayout">
+                <pattern>%m%nopex</pattern>
+            </shortMessageLayout>
+            <fullMessageLayout class="ch.qos.logback.classic.PatternLayout">
+                <pattern>%m%n</pattern>
+            </fullMessageLayout>
+            <!-- Campos estáticos para facilitar pesquisa no Graylog -->
+            <staticField>application:bikes</staticField>
+            <staticField>environment:${APP_ENV:-local}</staticField>
+        </encoder>
+    </appender>
+
+    <!-- Logger do pacote da aplicação em DEBUG (enunciado exige 3 níveis visíveis) -->
+    <logger name="br.edu.ifc.bikes" level="DEBUG" additivity="true"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="GELF"/>
+    </root>
+
+</configuration>
