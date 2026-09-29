@@ -111,6 +111,8 @@ services:
       GRAYLOG_ELASTICSEARCH_HOSTS: "http://opensearch:9200"
       GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
       GRAYLOG_SERVER_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # Sem telemetria: evita o pop-up de consentimento e não envia dados de uso para fora
+      GRAYLOG_TELEMETRY_ENABLED: "false"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -157,6 +159,7 @@ services:
   app:
     build: .
     container_name: bikes-app
+    hostname: bikes-app   # vira o campo "source" das mensagens no Graylog
     restart: unless-stopped
     environment:
       DB_HOST: mysql
@@ -245,7 +248,7 @@ services:
     profiles:
       - loadtest
     volumes:
-      - ./loadtest/script.js:/scripts/script.js:ro
+      - ./loadtest:/scripts:ro
     entrypoint: ["k6", "run", "/scripts/script.js"]
     environment:
       BASE_URL: "http://app:8080"

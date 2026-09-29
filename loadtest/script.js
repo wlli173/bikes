@@ -23,11 +23,11 @@ export const options = {
 const BASE_URL = __ENV.BASE_URL || "http://app:8080";
 
 export default function () {
-  // POST — criar usuário
-  const username = `user_${randomString(8)}`;
+  // POST — criar usuário (username deve ser e-mail e senha ter exatamente 6 caracteres)
+  const username = `user_${randomString(8)}@bikes.com`;
   const payload = JSON.stringify({
     username: username,
-    password: "senha123",
+    password: "senha1",
   });
   const headers = { "Content-Type": "application/json" };
 
@@ -36,6 +36,16 @@ export default function () {
   });
   check(createRes, {
     "POST /usuarios — 201": (r) => r.status === 201,
+  });
+
+  // POST inválido — gerar 422 (Bean Validation)
+  const invalidRes = http.post(
+    `${BASE_URL}/api/v1/usuarios`,
+    JSON.stringify({ username: "nao-e-email", password: "123" }),
+    { headers }
+  );
+  check(invalidRes, {
+    "POST /usuarios inválido — 422": (r) => r.status === 422,
   });
 
   // GET — listar todos
@@ -56,7 +66,7 @@ export default function () {
     // PATCH — alterar senha
     const patchRes = http.patch(
       `${BASE_URL}/api/v1/usuarios/${userId}`,
-      JSON.stringify({ password: "novaSenha456" }),
+      JSON.stringify({ password: "nova12" }),
       { headers }
     );
     check(patchRes, {

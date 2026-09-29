@@ -1,134 +1,50 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "links": [],
   "panels": [
     {
-      "title": "Heap JVM — Usado vs Máximo",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": { "fillOpacity": 20 }
-        },
-        "overrides": []
+      "id": 100,
+      "type": "row",
+      "title": "Visão geral",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
       },
-      "targets": [
-        {
-          "expr": "jvm_memory_used_bytes{area=\"heap\"}",
-          "legendFormat": "Usado — {{id}}",
-          "refId": "A"
-        },
-        {
-          "expr": "jvm_memory_max_bytes{area=\"heap\"}",
-          "legendFormat": "Máximo — {{id}}",
-          "refId": "B"
-        }
-      ]
+      "panels": []
     },
     {
-      "title": "Uso de CPU — Processo / Sistema",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0,
-          "max": 1,
-          "custom": { "fillOpacity": 10 }
-        },
-        "overrides": []
+      "id": 1,
+      "title": "Requisições/s (total)",
+      "type": "stat",
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
       },
-      "targets": [
-        {
-          "expr": "process_cpu_usage",
-          "legendFormat": "Processo",
-          "refId": "A"
-        },
-        {
-          "expr": "system_cpu_usage",
-          "legendFormat": "Sistema",
-          "refId": "B"
-        }
-      ]
-    },
-    {
-      "title": "Taxa de Requisições HTTP (req/s)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
-          "custom": { "fillOpacity": 15 }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "expr": "rate(http_server_requests_seconds_count[1m])",
-          "legendFormat": "{{method}} {{uri}} — {{status}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "Latência HTTP p95 (ms)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": { "fillOpacity": 10 }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[1m])) by (le, uri))",
-          "legendFormat": "p95 — {{uri}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "Contagem de Requisições por Status Code",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "expr": "sum by (status) (http_server_requests_seconds_count)",
-          "legendFormat": "HTTP {{status}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "Threads JVM Ativas",
-      "type": "gauge",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
           "thresholds": {
+            "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 100 },
-              { "color": "red", "value": 200 }
+              {
+                "color": "blue",
+                "value": null
+              }
             ]
           }
         },
@@ -136,59 +52,1179 @@
       },
       "targets": [
         {
-          "expr": "jvm_threads_live_threads",
-          "legendFormat": "Threads ativas",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\"}[1m])) or vector(0)",
+          "legendFormat": "req/s",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "refId": "A"
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
     },
     {
-      "title": "Uptime da Aplicação",
+      "id": 2,
+      "title": "Taxa de erro 5xx",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "process_uptime_seconds",
-          "legendFormat": "Uptime",
+          "expr": "(sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[1m])) or vector(0)) / (sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\"}[1m])) > 0) or vector(0)",
+          "legendFormat": "5xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "refId": "A"
         }
-      ]
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
     },
     {
-      "title": "GC Pausas (s)",
-      "type": "timeseries",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "id": 3,
+      "title": "Latência p95 (geral)",
+      "type": "stat",
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "custom": { "fillOpacity": 10 }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "rate(jvm_gc_pause_seconds_sum[1m])",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"bikes-app\", uri!~\"/actuator.*\"}[1m])))",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Uptime da aplicação",
+      "type": "stat",
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "process_uptime_seconds{job=\"bikes-app\"}",
+          "legendFormat": "uptime",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "JVM e sistema",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "title": "Memória Heap da JVM",
+      "type": "timeseries",
+      "description": "Heap usado, reservado (committed) e limite máximo da JVM.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(jvm_memory_used_bytes{job=\"bikes-app\", area=\"heap\"})",
+          "legendFormat": "Usado",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "sum(jvm_memory_committed_bytes{job=\"bikes-app\", area=\"heap\"})",
+          "legendFormat": "Committed",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        },
+        {
+          "expr": "sum(jvm_memory_max_bytes{job=\"bikes-app\", area=\"heap\"} > 0)",
+          "legendFormat": "Máximo",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Uso de CPU",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{job=\"bikes-app\"}",
+          "legendFormat": "Processo (app)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "system_cpu_usage{job=\"bikes-app\"}",
+          "legendFormat": "Sistema (container)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Tráfego HTTP",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "title": "RPS por classe de status",
+      "type": "timeseries",
+      "description": "Requisições por segundo agrupadas em 2xx, 4xx e 5xx (exclui /actuator).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"2..\"}[1m])) or vector(0)",
+          "legendFormat": "2xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"4..\"}[1m])) or vector(0)",
+          "legendFormat": "4xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[1m])) or vector(0)",
+          "legendFormat": "5xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "RPS por endpoint",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\"}[1m]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Contagem de requisições por classe de status",
+      "type": "stat",
+      "description": "Total de requisições no intervalo selecionado.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"2..\"}[$__range])) or vector(0)",
+          "legendFormat": "2xx",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"4..\"}[$__range])) or vector(0)",
+          "legendFormat": "4xx",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        },
+        {
+          "expr": "sum(increase(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[$__range])) or vector(0)",
+          "legendFormat": "5xx",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Contagem de requisições por status code",
+      "type": "bargauge",
+      "description": "",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "HTTP 2.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "HTTP 3.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "HTTP 4.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "HTTP 5.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (status) (increase(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\"}[$__range])))",
+          "legendFormat": "HTTP {{status}}",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 103,
+      "type": "row",
+      "title": "Tempo de resposta",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "Tempo médio de resposta por classe de status",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_sum{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"2..\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"2..\"}[1m]))",
+          "legendFormat": "2xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_sum{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"4..\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"4..\"}[1m]))",
+          "legendFormat": "4xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_sum{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[1m]))",
+          "legendFormat": "5xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Latência p95 por classe de status",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"2..\"}[1m])))",
+          "legendFormat": "p95 2xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"4..\"}[1m])))",
+          "legendFormat": "p95 4xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"bikes-app\", uri!~\"/actuator.*\", status=~\"5..\"}[1m])))",
+          "legendFormat": "p95 5xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Latência p95 por endpoint",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{job=\"bikes-app\", uri!~\"/actuator.*\"}[1m])))",
+          "legendFormat": "{{method}} {{uri}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "type": "row",
+      "title": "Runtime e logs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 46
+      },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "title": "Threads da JVM",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{job=\"bikes-app\"}",
+          "legendFormat": "Vivas",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        },
+        {
+          "expr": "jvm_threads_daemon_threads{job=\"bikes-app\"}",
+          "legendFormat": "Daemon",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Pausas de GC (s/s)",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (action, cause) (rate(jvm_gc_pause_seconds_sum{job=\"bikes-app\"}[1m]))",
           "legendFormat": "{{action}} — {{cause}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Eventos de log por nível (Logback)",
+      "type": "timeseries",
+      "description": "Taxa de mensagens de log emitidas por nível — as mesmas mensagens ficam pesquisáveis no Graylog.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warn"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "info"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "debug"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (level) (rate(logback_events_total{job=\"bikes-app\"}[1m]))",
+          "legendFormat": "{{level}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "refId": "A"
         }
       ]
     }
   ],
+  "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["spring-boot", "jvm", "bikes"],
-  "templating": { "list": [] },
-  "time": { "from": "now-30m", "to": "now" },
+  "tags": [
+    "spring-boot",
+    "jvm",
+    "bikes"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "America/Sao_Paulo",
   "title": "Bikes — JVM & Spring Boot",
   "uid": "bikes-jvm-spring",
-  "version": 1
+  "version": 2
 }
