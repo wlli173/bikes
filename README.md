@@ -1,266 +1,390 @@
-# 🚲 Bikes — CRUD de Usuários com Observabilidade DevOps
+# 🚲 Bikes — Automação, Observabilidade e Esteira DevSecOps
 
-Projeto acadêmico de DevOps do IFC. Aplicação CRUD de usuários em **Spring Boot 4.1.1 / Java 25**, com stack completa de observabilidade: monitoramento (Prometheus + Grafana), logs centralizados (Graylog + OpenSearch + MongoDB) e pipeline CI/CD (GitHub Actions).
+[![CI/CD](https://github.com/wlli173/bikes/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/wlli173/bikes/actions/workflows/ci-cd.yml)
 
----
-
-## 📋 Divisão de Tarefas
-
-| Integrante | Itens | Descrição |
-|------------|-------|-----------|
-| **Willighan** | 1 | Pipeline CI/CD (GitHub Actions + GHCR) — ✅ Concluído |
-| **Lucas** | 2, 3 | Prometheus + Grafana (dashboards) |
-| **Victor** | 4, 5, 6 | Graylog + docker-compose.yml + README |
-
-> **Nota:** As dependências `spring-boot-starter-actuator` e `micrometer-registry-prometheus` foram adicionadas pelo Victor de forma mínima para que o compose funcione (healthcheck + Prometheus). Isso **invade a área do Lucas** e deve ser combinado antes do merge na branch principal.
-
----
-
-## 🏗️ Arquitetura da Stack
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                      docker compose up --build                  │
-├──────────┬──────────┬──────────┬──────────┬──────────┬──────────┤
-│  MySQL   │ MongoDB  │OpenSearch│ Graylog  │Prometheus│ Grafana  │
-│  8.0.39  │  6.0.20  │  2.15.0  │  6.1.16  │ v3.4.1   │ 11.6.0  │
-│  :3306   │  :27017  │  :9200   │  :9000   │  :9090   │  :3000   │
-│(internal)│(internal)│(internal)│  (host)  │  (host)  │  (host)  │
-├──────────┴──────────┴──────┬───┴──────────┼──────────┴──────────┤
-│                            │              │                      │
-│   ┌─ graylog-init ─────┐  │              │                      │
-│   │ Cria input GELF via │  │              │                      │
-│   │ API REST (idempt.)  │  │              │                      │
-│   └─────────┬───────────┘  │              │                      │
-│             ▼              │              │                      │
-│   ┌─── Bikes App ──────────┼──────────────┤                      │
-│   │ Spring Boot 4.1.1      │ GELF UDP     │ /actuator/prometheus │
-│   │ Java 25 (Alpine JRE)   │ :12201       │ scrape 5s            │
-│   │ :8080 (host)           │              │                      │
-│   └────────────────────────┴──────────────┴──────────────────────┘
-│
-│   ┌─── k6 loadtest ────┐  (perfil: loadtest)
-│   │ grafana/k6:0.56.0   │  docker compose --profile loadtest up loadtest
-│   └─────────────────────┘
-└────────────────────────────────────────────────────────────────┘
-```
-
-### Tabela de Serviços
-
-| Serviço | URL de Acesso | Porta Host | Credenciais |
-|---------|--------------|------------|-------------|
-| **Bikes App** | http://localhost:8080/api/v1/usuarios | 8080 | — |
-| **Actuator Health** | http://localhost:8080/actuator/health | 8080 | — |
-| **Prometheus** | http://localhost:9090 | 9090 | — |
-| **Grafana** | http://localhost:3000 | 3000 | admin/admin (ou acesso anônimo como Viewer) |
-| **Graylog** | http://localhost:9000 | 9000 | admin/admin |
-| MySQL | — | não exposta | root/root |
-| MongoDB | — | não exposta | — |
-| OpenSearch | — | não exposta | segurança desabilitada |
-
----
-
-## ⚙️ Pré-requisitos
-
-| Requisito | Mínimo | Verificação |
-|-----------|--------|-------------|
-| Docker | 24+ | `docker --version` |
-| Docker Compose | V2+ | `docker compose version` |
-| Memória alocada ao Docker | **6 GB** (recomendado 8 GB) | Docker Desktop → Settings → Resources |
-| vm.max_map_count (WSL2/Linux) | 262144 | Ver seção Troubleshooting |
-
----
-
-## 🚀 Execução
-
-### Comando Único
+API REST de usuários em **Spring Boot 4.1.1 / Java 25** (baseada no projeto da disciplina [fabiojrp/bikes-2026.2](https://github.com/fabiojrp/bikes-2026.2)), conteinerizada com **Dockerfile Multistage**, publicada por uma **esteira CI/CD no GitHub Actions** e acompanhada por uma stack local completa de **métricas (Prometheus + Grafana)** e **logs centralizados (Graylog + OpenSearch + MongoDB)** — tudo sobe com um único comando.
 
 ```bash
 docker compose up --build
 ```
 
-> **Tempo estimado de subida**: Primeira execução (build + download de 2.5GB de imagens): ~6 minutos. Execuções subsequentes (cache): ~42 segundos.
+---
 
-### Validação
+## Sumário
 
-Aguarde até que todos os serviços estejam healthy:
+1. [Arquitetura](#-arquitetura)
+2. [Como executar](#-como-executar)
+3. [API da aplicação](#-api-da-aplicação)
+4. [Dockerfile Multistage](#-dockerfile-multistage-requisito-eliminatório)
+5. [Pipeline CI/CD](#-pipeline-cicd-github-actions)
+6. [Monitoramento — Prometheus](#-monitoramento--prometheus)
+7. [Observabilidade — Grafana](#-observabilidade--grafana)
+8. [Logs centralizados — Graylog](#-logs-centralizados--graylog)
+9. [Decisões técnicas](#-decisões-técnicas)
+10. [Testes automatizados](#-testes-automatizados)
+11. [Estrutura do repositório](#-estrutura-do-repositório)
+12. [Mapeamento da rubrica](#-mapeamento-da-rubrica)
+13. [Troubleshooting](#-troubleshooting)
+
+---
+
+## 🏗️ Arquitetura
+
+```mermaid
+flowchart LR
+    subgraph CI["GitHub Actions"]
+        T[Compilação e testes] --> B[Build multistage] --> S[Scan Trivy] --> P[Push GHCR]
+    end
+
+    subgraph Local["docker compose up --build  (rede bikes-net)"]
+        APP["app<br/>Spring Boot :8080"]
+        DB[("mysql")]
+        PROM["prometheus :9090"]
+        GRAF["grafana :3000"]
+        GL["graylog :9000"]
+        OS[("opensearch")]
+        MG[("mongodb")]
+        INIT["graylog-init<br/>(cria input GELF)"]
+        K6["k6 loadtest<br/>(perfil opcional)"]
+
+        APP -->|JPA| DB
+        PROM -->|scrape /actuator/prometheus a cada 5s| APP
+        GRAF -->|datasource| PROM
+        APP -->|GELF UDP :12201| GL
+        GL --> OS
+        GL --> MG
+        INIT -->|REST API| GL
+        K6 -->|HTTP| APP
+    end
+```
+
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| **API Bikes** | http://localhost:8080/api/v1/usuarios | — |
+| **Swagger UI** | http://localhost:8080/docs-bikes.html | — |
+| **Actuator** | http://localhost:8080/actuator/health · `/actuator/prometheus` | — |
+| **Prometheus** | http://localhost:9090/targets | — |
+| **Grafana** | http://localhost:3000 → dashboard *Bikes — JVM & Spring Boot* | `admin` / `admin` (ou anônimo como Viewer) |
+| **Graylog** | http://localhost:9000 | `admin` / `admin` |
+| MySQL, MongoDB, OpenSearch | apenas rede interna | — |
+
+Ordem de subida garantida por `depends_on` + `condition` e healthchecks reais:
+
+```
+mongodb ─┐
+         ├─(healthy)─► graylog ─(healthy)─► graylog-init ─(completed)─┐
+opensearch┘                                                          ├─► app ─► (loadtest)
+mysql ─────────────────────────(healthy)─────────────────────────────┘
+prometheus ─(healthy)─► grafana
+```
+
+---
+
+## 🚀 Como executar
+
+### Pré-requisitos
+
+| Requisito | Mínimo |
+|-----------|--------|
+| Docker + Docker Compose V2 | Docker 24+ |
+| Memória para o Docker | **6 GB** (recomendado 8 GB) |
+| `vm.max_map_count` (Linux/WSL2) | 262144 — ver [Troubleshooting](#-troubleshooting) |
+
+### 1. Subir a stack (comando único)
+
+```bash
+docker compose up --build
+```
+
+Nenhuma etapa manual é necessária: o input GELF do Graylog, o datasource e o dashboard do Grafana são provisionados automaticamente. A primeira execução baixa ~2,5 GB de imagens; com as imagens em cache, a stack inteira fica `healthy` em **~70 s**.
+
+Para acompanhar em outro terminal:
 
 ```bash
 docker compose ps
 ```
 
-Todos os serviços devem mostrar status `healthy`.
+```
+NAME               IMAGE                                 STATUS
+bikes-app          bikes-app                             Up (healthy)
+bikes-grafana      grafana/grafana:11.6.0                Up (healthy)
+bikes-graylog      graylog/graylog:6.1.16                Up (healthy)
+bikes-mongodb      mongo:6.0.20                          Up (healthy)
+bikes-mysql        mysql:8.0.39                          Up (healthy)
+bikes-opensearch   opensearchproject/opensearch:2.15.0   Up (healthy)
+bikes-prometheus   prom/prometheus:v3.4.1                Up (healthy)
+```
 
-### Gerar Tráfego (popular dashboards)
+> `bikes-graylog-init` aparece como `Exited (0)` — é esperado: ele só cria o input GELF e termina.
+
+### 2. Gerar tráfego (popular dashboards e logs)
 
 ```bash
 docker compose --profile loadtest up loadtest
 ```
 
-### Parar e Limpar
+O script k6 ([loadtest/script.js](loadtest/script.js)) roda por 2 minutos (até 10 usuários virtuais) e exercita todos os cenários: `201`, `200`, `422` (validação), `404` e `500`, além de logs DEBUG/INFO/WARN/ERROR.
+
+### 3. Parar e limpar
 
 ```bash
-docker compose down -v --remove-orphans
+docker compose --profile loadtest down -v --remove-orphans
 ```
 
 ---
 
-## 🔧 Decisões Técnicas
+## 📘 API da aplicação
 
-### 1. Multistage Build (Dockerfile)
-O Dockerfile usa dois estágios:
-- **Build** (`maven:3.9.16-eclipse-temurin-25-alpine`): JDK + Maven para compilar e gerar o JAR.
-- **Runtime** (`eclipse-temurin:25-jre-alpine`): apenas JRE, sem ferramentas de build.
+| Método | Rota | Descrição | Respostas |
+|--------|------|-----------|-----------|
+| `POST` | `/api/v1/usuarios` | Cria usuário (`username` = e-mail, `password` = 6 caracteres) | `201`, `422` |
+| `GET` | `/api/v1/usuarios` | Lista usuários | `200` |
+| `GET` | `/api/v1/usuarios/{id}` | Busca por id | `200`, `404` |
+| `PATCH` | `/api/v1/usuarios/{id}` | Atualiza a senha | `200`, `404` |
+| `GET` | `/api/v1/demo/log` | Emite logs DEBUG/INFO/WARN/ERROR (evidência do Graylog) | `200` |
+| `GET` | `/api/v1/demo/log/error` | Simula erro 500 | `500` |
 
-**Ganho de tamanho**: a imagem base de build (maven) tem ~800 MB; a imagem final construída sobre JRE (bikes-app) tem ~419 MB de disk usage. Redução de praticamente metade do tamanho, sem carregar o código fonte para runtime.
+Documentação interativa (SpringDoc/OpenAPI, vinda do projeto base): **http://localhost:8080/docs-bikes.html**
 
-Configurações de segurança: usuário não-root (`spring`), `MaxRAMPercentage=75`, timezone `America/Sao_Paulo`.
+```bash
+curl -X POST http://localhost:8080/api/v1/usuarios \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ana@bikes.com","password":"123456"}'
+```
 
-### 2. Biblioteca GELF (logback-gelf)
-**Escolha**: `de.siegmar:logback-gelf:6.1.2`
+Entradas inválidas retornam `422` com os erros por campo (`ApiExceptionHandler`):
 
-**Por quê**:
-- Compatível com Java 25 e Logback 1.5.38 (versão gerenciada pelo Spring Boot 4.1.1)
-- Zero dependências extras (só precisa do Logback que já existe)
-- Ativamente mantida (release de Set/2025)
-- Suporta UDP GELF nativamente
-- Descartadas: `biz.paluch.logging:logstash-gelf` (compatibilidade incerta com Logback 1.5.x) e Docker GELF log driver (impede startup se Graylog não está pronto)
+```json
+{"errors":{"password":"tamanho deve ser entre 6 e 6","username":"O email deve ser válido"},
+ "message":"Campo(s) inválido(s)","method":"POST","path":"/api/v1/usuarios",
+ "status":422,"statusMessage":"Unprocessable Content"}
+```
 
-### 3. Healthchecks vs depends_on simples
-O `depends_on` sem `condition` apenas garante que o container *iniciou*, não que está *pronto*. Serviços como OpenSearch e Graylog levam 60-120s para aceitar conexões. Sem healthchecks com `start_period` generoso, os dependentes falham com connection refused.
-
-Cada serviço tem healthcheck real:
-- MySQL: `mysqladmin ping`
-- MongoDB: `mongosh --eval "db.adminCommand('ping')"`
-- OpenSearch: `curl /_cluster/health`
-- Graylog: `curl /api/system/lbstatus`
-- App: `wget --spider /actuator/health` (Alpine sem curl — usa wget do busybox)
-- Prometheus: `wget --spider /-/healthy`
-- Grafana: `curl /api/health`
-
-### 4. Limites de Memória (heaps)
-A stack inteira consome em torno de 2.5 GB a 3 GB (reais) em idle, mas os limites configurados somam ~6,5 GB para absorver o tráfego do loadtest. Os principais consumos observados no `docker stats` e seus limites são:
-
-| Serviço | Consumo Medido (idle) | Limite | Heap / Config |
-|---------|-----------------------|--------|---------------|
-| OpenSearch | ~908 MB | 1,5 GB | -Xms512m -Xmx512m |
-| Graylog | ~1 GB | 2 GB | -Xms512m -Xmx512m |
-| MySQL | ~152 MB | 1 GB | innodb-buffer-pool-size=64M |
-| MongoDB | ~93 MB | 512 MB | wiredTigerCacheSizeGB=0.25 |
-| App | ~246 MB | 1 GB | MaxRAMPercentage=75 |
-| Prometheus | ~25 MB | 256 MB | — |
-| Grafana | ~85 MB | 256 MB | — |
-
-### 5. Input GELF Provisionado Automaticamente
-O input GELF UDP é criado **sem intervenção manual**:
-
-Um container de inicialização (`graylog-init`) aguarda o Graylog ficar healthy e cria o input via API REST (POST `/api/system/inputs` com o header obrigatório `X-Requested-By`). É idempotente: verifica se o input já existe antes de criar, então re-execuções do compose não geram duplicatas.
-
-> O mecanismo de *content pack* (`GRAYLOG_CONTENT_PACKS_AUTO_INSTALL`) foi **deliberadamente desabilitado**: o arquivo `graylog/contentpacks/gelf-udp-input.json` está no formato legado v1, que o Graylog 6.x não aceita, e mantê-lo ativo criaria risco de input duplicado competindo pela porta 12201. O arquivo permanece no repositório apenas como referência do que o input provisiona.
-
-A app depende do init com `condition: service_completed_successfully`, garantindo que o input existe **antes** do primeiro log GELF.
-
-### 6. H2 Console Desabilitado
-O `spring.h2.console.enabled=false` desabilita o console H2 em runtime. Em um projeto DevSecOps, expor um console de banco em produção é um risco de segurança. O H2 continua sendo usado apenas nos testes (via `src/test/resources/application.properties`).
-
-### 7. Portas Internas
-MySQL, MongoDB e OpenSearch **não expõem portas no host** — apenas a rede interna do compose (`bikes-net`). Isso elimina conflitos com serviços locais (ex: MySQL na 3306) e reduz a superfície de ataque.
+![Swagger UI](docs/evidencias/swagger-ui.png)
 
 ---
 
-## 📸 Evidências
+## 🐳 Dockerfile Multistage (requisito eliminatório)
 
-As evidências devem ser salvas em `docs/evidencias/`. Prints necessários:
+[Dockerfile](Dockerfile):
 
-| # | Evidência | Arquivo | O que mostra |
-|---|-----------|---------|-------------|
-| 1 | Pipeline CI/CD | `pipeline-github-actions.png` | Workflow verde no GitHub Actions |
-| 2 | Imagem no GHCR | `ghcr-imagem.png` | Imagem publicada no GitHub Container Registry |
-| 3 | Compose healthy | `docker-compose-ps.png` | `docker compose ps` com todos os serviços healthy |
-| 4 | Dashboard Grafana | `grafana-dashboard.png` | Dashboard "Bikes — JVM & Spring Boot" com dados reais (após loadtest) |
-| 5 | Graylog — INFO | `graylog-logs-info.png` | Busca no Graylog filtrando logs de nível INFO |
-| 6 | Graylog — DEBUG | `graylog-logs-debug.png` | Busca no Graylog filtrando logs de nível DEBUG |
-| 7 | Graylog — ERROR | `graylog-logs-error.png` | Busca no Graylog filtrando logs de nível ERROR |
-| 8 | Input GELF | `graylog-input-gelf.png` | System > Inputs mostrando "GELF UDP Input" ativo |
+| Estágio | Imagem base | Conteúdo |
+|---------|-------------|----------|
+| **1 — build** | `maven:3.9.16-eclipse-temurin-25-alpine` | JDK + Maven; resolve dependências (camada cacheada pelo `pom.xml`) e gera o `.jar` |
+| **2 — runtime** | `eclipse-temurin:25-jre-alpine` | **Apenas JRE** + `app.jar` copiado do estágio 1 (`COPY --from=build`) |
 
-### Como tirar os prints
+Verificação na imagem final (`bikes-app`):
 
-1. Suba a stack: `docker compose up --build`
-2. Aguarde todos os serviços ficarem healthy: `docker compose ps`
-3. Tire o print #3
-4. Execute o loadtest: `docker compose --profile loadtest up loadtest`
-5. Abra o Grafana (http://localhost:3000) → Dashboard "Bikes — JVM & Spring Boot" → Print #4
-6. Abra o Graylog (http://localhost:9000, admin/admin)
-7. Na busca, filtre por `level_name:INFO` → Print #5
-8. Filtre por `level_name:DEBUG` → Print #6
-9. Filtre por `level_name:ERROR` → Print #7
-10. Vá em System > Inputs → Print #8
-11. No GitHub, vá em Actions → Print #1
-12. No GitHub, vá em Packages → Print #2
+```text
+$ docker run --rm --entrypoint sh bikes-app -c 'command -v javac; command -v mvn; ls /app; id'
+javac: ausente
+mvn: ausente
+app.jar
+uid=100(spring) gid=101(spring)
+```
+
+- Sem JDK, sem Maven, sem código-fonte e sem o repositório `~/.m2` na imagem de produção — só o JRE (~190 MB) e o JAR (~64 MB).
+- Executa como usuário **não-root** (`spring`), com `TZ=America/Sao_Paulo` e `-XX:MaxRAMPercentage=75` (heap respeita o limite de memória do container).
+- A própria esteira de CI **falha** se `javac` ou `mvn` aparecerem na imagem final (passo *Verificar runtime enxuto*).
+
+---
+
+## 🔁 Pipeline CI/CD (GitHub Actions)
+
+[.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml) — disparada automaticamente em **push** e **pull request** para `main`/`master` (e manualmente via `workflow_dispatch`).
+
+```mermaid
+flowchart LR
+    A[push / PR] --> B["Job 1: Compilação e Testes<br/>./mvnw verify (9 testes)"]
+    B --> C["Job 2: Build Multistage<br/>(buildx + cache GHA)"]
+    C --> D[Verifica runtime<br/>sem javac/mvn]
+    D --> E[Scan Trivy<br/>HIGH/CRITICAL]
+    E --> F["Push GHCR<br/>ghcr.io/wlli173/bikes"]
+```
+
+| Etapa | Detalhe |
+|-------|---------|
+| **Compilação e testes** | Java 25 (Temurin) com cache Maven; `./mvnw -B verify`; resumo dos testes no *job summary* e relatórios Surefire como artefato |
+| **Build da imagem** | `docker/build-push-action` com o Dockerfile multistage e cache `type=gha` (a imagem é construída **uma única vez**) |
+| **Segurança** | Verificação de runtime enxuto + scan de vulnerabilidades com **Trivy** (relatório no *job summary* e como artefato) |
+| **Publicação** | Push para o **GitHub Container Registry**: `sha-<commit>`, `latest` (branch padrão) e `pr-<n>` (PRs internos). PRs de forks fazem build + scan, sem push |
+
+Práticas DevSecOps aplicadas na esteira:
+- **Menor privilégio**: `permissions: contents: read` global; só o job de imagem recebe `packages: write`.
+- **Actions fixadas por SHA de commit** (com a versão em comentário) — protege contra tags reescritas em ataques de supply chain.
+- `concurrency` cancela execuções obsoletas da mesma branch/PR.
+- Autenticação no GHCR com o `GITHUB_TOKEN` efêmero (nenhum segredo manual).
+
+> Existe também uma esteira equivalente para GitLab em [.gitlab-ci.yml](.gitlab-ci.yml).
+
+### Evidências
+
+![Pipeline no GitHub Actions](docs/evidencias/pipeline-github-actions.png)
+
+![Imagem publicada no GHCR](docs/evidencias/ghcr-imagem.png)
+
+---
+
+## 📈 Monitoramento — Prometheus
+
+- A aplicação usa **Spring Boot Actuator + Micrometer** (`micrometer-registry-prometheus`) e expõe `/actuator/prometheus` ([application.properties](src/main/resources/application.properties)).
+- Histograma de latência habilitado (`percentiles-histogram.http.server.requests=true`) para calcular p95 no Prometheus.
+- [prometheus/prometheus.yml](prometheus/prometheus.yml) faz o scrape de `app:8080/actuator/prometheus` **a cada 5 s** (job `bikes-app`).
+
+![Targets do Prometheus](docs/evidencias/prometheus-targets.png)
+
+---
+
+## 📊 Observabilidade — Grafana
+
+Datasource e dashboard provisionados como código em [grafana/provisioning/](grafana/provisioning/) — nada é configurado manualmente. Dashboard **"Bikes — JVM & Spring Boot"** (21 painéis, atualização a cada 10 s):
+
+| Seção | Painéis | Requisito do enunciado |
+|-------|---------|------------------------|
+| Visão geral | RPS total, taxa de erro 5xx, latência p95, uptime | — |
+| JVM e sistema | **Memória Heap** (usado / committed / máximo), **Uso de CPU** (processo e container) | Heap da JVM · CPU |
+| Tráfego HTTP | **RPS por classe de status (2xx/4xx/5xx)**, RPS por endpoint, **contagem por classe e por status code** | RPS · contagem por status |
+| Tempo de resposta | **Tempo médio e p95 por classe de status**, p95 por endpoint | tempo de resposta por status |
+| Runtime e logs | Threads, pausas de GC, eventos de log por nível (Logback) | — |
+
+As consultas excluem `/actuator/*` para que o scrape do Prometheus e os healthchecks não poluam as métricas de negócio.
+
+![Dashboard Grafana — visão geral e JVM](docs/evidencias/grafana-dashboard-1.png)
+![Dashboard Grafana — tráfego e contagem por status](docs/evidencias/grafana-dashboard-2.png)
+![Dashboard Grafana — tempo de resposta](docs/evidencias/grafana-dashboard-3.png)
+![Dashboard Grafana — runtime e logs](docs/evidencias/grafana-dashboard-4.png)
+
+---
+
+## 🪵 Logs centralizados — Graylog
+
+- **Stack**: Graylog 6.1 + OpenSearch 2.15 + MongoDB 6.0.
+- **Envio**: appender GELF UDP no Logback ([logback-spring.xml](src/main/resources/logback-spring.xml)) usando `de.siegmar:logback-gelf`, com os logs também no console.
+- **Input automático**: o container `graylog-init` executa [graylog/init-gelf-input.sh](graylog/init-gelf-input.sh), que cria o input *GELF UDP* via API REST de forma **idempotente**; a app só sobe depois (`service_completed_successfully`), então nenhum log inicial se perde.
+- **Mensagens estruturadas** — campos pesquisáveis em cada mensagem:
+
+| Campo | Exemplo |
+|-------|---------|
+| `source` | `bikes-app` |
+| `level_name` | `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `logger_name` | `br.edu.ifc.bikes.service.UsuarioService` |
+| `application` / `environment` | `bikes` / `docker` |
+| `thread_name` | `http-nio-8080-exec-3` |
+| `full_message` | mensagem completa, com stack trace quando houver exceção |
+
+Consultas úteis no Graylog: `source:bikes-app AND level_name:ERROR` · `logger_name:br.edu.ifc.bikes.service.UsuarioService` · `message:"Requisição inválida"`
+
+Além do endpoint de demonstração, a aplicação registra eventos reais de negócio: criação de usuário (INFO), buscas e listagens (DEBUG), usuário inexistente e requisições inválidas (WARN).
+
+![Graylog — todos os logs da aplicação](docs/evidencias/graylog-logs-todos.png)
+![Graylog — DEBUG](docs/evidencias/graylog-logs-debug.png)
+![Graylog — INFO](docs/evidencias/graylog-logs-info.png)
+![Graylog — ERROR](docs/evidencias/graylog-logs-error.png)
+![Graylog — input GELF provisionado](docs/evidencias/graylog-input-gelf.png)
+
+---
+
+## 🔧 Decisões técnicas
+
+1. **Healthchecks reais + `depends_on: condition`** — `depends_on` simples só espera o container iniciar. OpenSearch e Graylog levam de 60 a 120 s para aceitar conexões, então cada serviço tem um healthcheck de verdade (`mysqladmin ping`, `mongosh ping`, `/_cluster/health`, `/api/system/lbstatus`, `/actuator/health`, `/-/healthy`, `/api/health`) com `start_period` generoso. É isso que garante a subida "de primeira".
+2. **Biblioteca GELF `de.siegmar:logback-gelf`** em vez de `logstash-gelf` ou do driver GELF do Docker: é compatível com o Logback 1.5.x do Spring Boot 4, não traz dependências extras e envia via UDP (não trava a app se o Graylog cair). O driver de log do Docker impediria o container de iniciar sem o Graylog pronto.
+3. **Input GELF via init container**, não via content pack: o formato de content pack legado não é aceito pelo Graylog 6.x. O arquivo [graylog/contentpacks/gelf-udp-input.json](graylog/contentpacks/gelf-udp-input.json) fica só como referência.
+4. **Limites de memória** para rodar em notebook de 8 GB: OpenSearch com heap de 512 MB (limite 1,5 GB), Graylog com 512 MB (limite 2 GB), MySQL com `innodb-buffer-pool-size=64M`, MongoDB com cache de 0,25 GB. Consumo total em repouso: ~2,5–3 GB.
+5. **Portas internas**: MySQL, MongoDB e OpenSearch não são publicados no host. Isso reduz a superfície de ataque e evita conflito com serviços locais.
+6. **Segurança da aplicação**:
+   - console H2 desabilitado em runtime;
+   - Actuator expõe apenas `health`, `info` e `prometheus`;
+   - o e-mail do usuário (PII) **não** é gravado em log, só o id;
+   - telemetria do Graylog desligada (`GRAYLOG_TELEMETRY_ENABLED=false`).
+7. **Testes independentes da infraestrutura**: nos testes, H2 em memória substitui o MySQL e um `logback-test.xml` só com console substitui o GELF. Assim a esteira roda sem Docker e sem Graylog.
+8. **`.env` versionado de propósito**: contém apenas valores do ambiente de avaliação (senha `admin` do Graylog, senha do MySQL local), necessários para o `docker compose up` funcionar sem nenhum passo manual. Em produção esses valores viriam de um cofre de segredos.
+9. **Sincronização com o projeto base**: o código de domínio segue o repositório da disciplina (validação, `ApiExceptionHandler`, SpringDoc). As adições deste trabalho (Actuator, Micrometer, GELF, variáveis `DB_*`) ficam isoladas no `pom.xml` e no `application.properties`. A versão do `spring-boot-starter-validation` é gerenciada pelo parent, para evitar misturar uma versão milestone com o Boot 4.1.1.
+
+---
+
+## ✅ Testes automatizados
+
+9 testes executados pela esteira (`./mvnw verify`):
+
+| Classe | O que valida |
+|--------|--------------|
+| `BikesApplicationTests` | Contexto Spring sobe |
+| `UsuarioControllerTest` | `201` na criação, `422` com erros por campo, `200`/`404` na busca, `200` no PATCH, listagem |
+| `ObservabilidadeTest` | `/actuator/health` = `UP` e `/actuator/prometheus` expõe métricas da JVM (contrato usado pelo compose e pelo Prometheus) |
+
+Rodar localmente sem instalar Java:
+
+```bash
+docker run --rm -v "$PWD":/ws -w /ws maven:3.9.16-eclipse-temurin-25-alpine mvn -B verify
+```
+
+---
+
+## 📁 Estrutura do repositório
+
+```
+.
+├── Dockerfile                          # multistage: build (JDK+Maven) → runtime (JRE)
+├── docker-compose.yml                  # stack completa (app + observabilidade + bancos)
+├── .env                                # variáveis do ambiente de avaliação
+├── .github/workflows/ci-cd.yml         # esteira GitHub Actions
+├── .gitlab-ci.yml                      # esteira equivalente (GitLab)
+├── prometheus/prometheus.yml           # scrape da aplicação
+├── grafana/provisioning/
+│   ├── datasources/prometheus.yml      # datasource provisionado
+│   └── dashboards/                     # provider + dashboard JSON
+├── graylog/init-gelf-input.sh          # cria o input GELF via API (idempotente)
+├── loadtest/script.js                  # carga k6 (perfil "loadtest")
+├── docs/evidencias/                    # prints usados neste README
+└── src/
+    ├── main/java/br/edu/ifc/bikes/     # config, dto, entity, repository, service, web
+    ├── main/resources/                 # application.properties, logback-spring.xml (GELF)
+    └── test/                           # testes + H2 + logback-test.xml
+```
+
+---
+
+## 🎯 Mapeamento da rubrica
+
+| Critério | Pontos | Onde está |
+|----------|--------|-----------|
+| **0. Multistage Build** | Eliminatório | [Dockerfile](Dockerfile) · verificado também na esteira |
+| **1. Pipeline CI/CD** | 2,5 | [ci-cd.yml](.github/workflows/ci-cd.yml) · testes → build → scan → push GHCR · [evidências](#evidências) |
+| **2. Orquestração Docker Compose** | 2,0 | [docker-compose.yml](docker-compose.yml) · healthchecks + `depends_on` + init container |
+| **3. Monitoramento de métricas** | 1,5 | Actuator/Micrometer no [pom.xml](pom.xml) · [prometheus.yml](prometheus/prometheus.yml) · print dos targets |
+| **4. Observabilidade e Grafana** | 1,5 | [grafana/provisioning](grafana/provisioning/) · heap, CPU, RPS, contagem e tempo por status · prints |
+| **5. Gestão de logs com Graylog** | 1,5 | [logback-spring.xml](src/main/resources/logback-spring.xml) · [init-gelf-input.sh](graylog/init-gelf-input.sh) · prints DEBUG/INFO/ERROR |
+| **6. Documentação e README** | 1,0 | Este arquivo · [docs/evidencias/](docs/evidencias/) |
 
 ---
 
 ## 🔥 Troubleshooting
 
-### OpenSearch falha com "max virtual memory areas vm.max_map_count [65530] is too low"
-
-No Windows com WSL2, execute:
+**OpenSearch falha com `max virtual memory areas vm.max_map_count [65530] is too low`** (Windows/WSL2):
 
 ```bash
 wsl -d docker-desktop -u root -- sysctl -w vm.max_map_count=262144
 ```
 
-Para persistir, crie/edite `%USERPROFILE%\.wslconfig`:
+Para persistir, adicione ao `%USERPROFILE%\.wslconfig` e rode `wsl --shutdown`:
 
 ```ini
 [wsl2]
 kernelCommandLine = "sysctl.vm.max_map_count=262144"
 ```
 
-Reinicie o WSL: `wsl --shutdown`
+**Porta ocupada (8080, 9090, 3000, 9000)**: identifique o processo com `netstat -ano | findstr :8080` (Windows) ou `lsof -i :8080` (Linux/macOS), encerre-o ou altere a porta no `docker-compose.yml`.
 
-### Porta ocupada
+**Containers com `OOMKilled`**: aumente a memória do Docker Desktop (Settings → Resources → Memory) para 6–8 GB.
 
-Se alguma porta estiver em uso (8080, 9090, 3000, 9000), identifique o processo:
-
-```bash
-netstat -ano | findstr :8080
-```
-
-E encerre o processo ou altere a porta no `docker-compose.yml`.
-
-### Pouca memória
-
-Se containers são mortos com OOMKilled:
-1. Aumente a memória do Docker Desktop (Settings → Resources → Memory)
-2. Mínimo recomendado: 6 GB, ideal: 8 GB
-
-### App não conecta ao MySQL
-
-Verifique se o container MySQL está healthy:
-
-```bash
-docker compose ps mysql
-docker compose logs mysql
-```
+**Dashboard sem dados**: gere tráfego com `docker compose --profile loadtest up loadtest` e confira se o target `bikes-app` está `UP` em http://localhost:9090/targets.
 
 ---
 
-## ✅ Mapeamento de Critérios da Rubrica
+## 👥 Equipe
 
-| Critério | Pontuação | Arquivo/Evidência |
-|----------|-----------|-------------------|
-| **1. Pipeline CI/CD** | 2,0 pts | `.github/workflows/ci-cd.yml` + `pipeline-github-actions.png` + `ghcr-imagem.png` |
-| **2. Monitoramento (Prometheus)** | 1,5 pts | `prometheus/prometheus.yml` + `pom.xml` (actuator/micrometer) + `application.properties` |
-| **3. Dashboards (Grafana)** | 2,0 pts | `grafana/provisioning/` + `grafana-dashboard.png` |
-| **4. Logs (Graylog)** | 1,5 pts | `graylog/` + `logback-spring.xml` + `graylog-logs-*.png` + `graylog-input-gelf.png` |
-| **5. Orquestração (docker-compose)** | 2,0 pts | `docker-compose.yml` + `.env` + `docker-compose-ps.png` |
-| **6. README** | 1,0 pt | `README.md` + `docs/evidencias/` |
-| **Dockerfile Multistage** | Obrigatório | `Dockerfile` (NÃO alterado) |
-
-### Descontos evitados
-
-| Desconto | Como foi evitado |
-|----------|-----------------|
-| Falha no startup (-1,0 pt) | Healthchecks reais com `start_period` generoso + `depends_on: condition` |
-| Falta de prints (-0,5 pt) | Seção de evidências com instruções detalhadas de cada print |
+| Integrante | Responsabilidade |
+|------------|------------------|
+| Willighan | Pipeline CI/CD (GitHub Actions + GHCR) |
+| Lucas | Prometheus + Grafana |
+| Victor | Graylog, docker-compose e documentação |
