@@ -12,3 +12,10 @@ target
 HELP.md
 *.md
 src/test
+docs/
+grafana/
+prometheus/
+graylog/
+loadtest/
+docker-compose.yml
+.env

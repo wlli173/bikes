@@ -80,6 +80,23 @@
 			<version>1.6.3</version>
 			<scope>compile</scope>
 		</dependency>
+
+		<!-- Observabilidade: Actuator + Prometheus (área do Lucas — commit isolado) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- Logs estruturados via GELF para o Graylog -->
+		<dependency>
+			<groupId>de.siegmar</groupId>
+			<artifactId>logback-gelf</artifactId>
+			<version>6.1.2</version>
+		</dependency>
 	</dependencies>
 
 	<build>

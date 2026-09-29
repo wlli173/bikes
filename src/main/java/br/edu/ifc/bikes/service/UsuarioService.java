@@ -30,14 +30,14 @@ public class UsuarioService {
 
     public UsuarioResponseDTO updatePassword(Long id, String password) {
         Usuario usuario = usuarioRepository.findById(id).orElse(null);
-        if (usuario != null){
+        if (usuario != null) {
             usuario.setPassword(password);
             return usuarioMapper.toResponse(usuarioRepository.save(usuario));
         }
         return null;
     }
 
-    public List<UsuarioResponseDTO> getAll(){
+    public List<UsuarioResponseDTO> getAll() {
         return usuarioMapper.toResponse(usuarioRepository.findAll());
     }
 }
