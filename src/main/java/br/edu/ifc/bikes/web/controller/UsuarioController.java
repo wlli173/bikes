@@ -2,6 +2,7 @@ package br.edu.ifc.bikes.web.controller;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
+import br.edu.ifc.bikes.dto.UsuarioSenhaDTO;
 import br.edu.ifc.bikes.service.UsuarioService;
 import br.edu.ifc.bikes.web.exception.ErrorMessage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -67,17 +68,15 @@ public class UsuarioController {
                 @ApiResponse(responseCode = "400", description = "Senha não confere",
                         content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
                 @ApiResponse(responseCode = "404", description = "Recurso não encontrado",
+                        content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                @ApiResponse(responseCode = "422", description = "Recurso não processado por dados de entrada inválidos",
                         content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class)))
         })
     //o PATCH deve ser utilizado, no lugar no PUT, quando a atualização for de poucos campos.
     @PatchMapping("/{id}")
-    public ResponseEntity<UsuarioResponseDTO> updatePassword(@PathVariable Long id, @RequestBody UsuarioRequestDTO usuario){
-        UsuarioResponseDTO updateUsuario = usuarioService.updatePassword(id, usuario.password());
-        if (updateUsuario != null){
-            return ResponseEntity.ok(updateUsuario);
-        }else{
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<Void> updatePassword(@PathVariable Long id, @Valid @RequestBody UsuarioSenhaDTO usuario){
+        usuarioService.updatePassword(id, usuario);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Listar todos os usuários", description = "Listar todos os usuários",

@@ -2,8 +2,12 @@ package br.edu.ifc.bikes.service;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
+import br.edu.ifc.bikes.dto.UsuarioSenhaDTO;
 import br.edu.ifc.bikes.dto.mapper.UsuarioMapper;
 import br.edu.ifc.bikes.entity.Usuario;
+import br.edu.ifc.bikes.exception.EntityNotFoundException;
+import br.edu.ifc.bikes.exception.PasswordInvalidException;
+import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import br.edu.ifc.bikes.repository.UsuarioRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -21,31 +25,50 @@ public class UsuarioService {
     private final UsuarioMapper usuarioMapper;
 
     public UsuarioResponseDTO create(UsuarioRequestDTO usuarioRequestDTO) {
-        Usuario usuario = usuarioMapper.toUsuario(usuarioRequestDTO);
-        Usuario salvo = usuarioRepository.save(usuario);
-        log.info("Usuário criado: id={}", salvo.getId()); // e-mail (PII) não é logado
-        return usuarioMapper.toResponse(salvo);
+        try {
+            Usuario usuario = usuarioMapper.toUsuario(usuarioRequestDTO);
+            Usuario salvo = usuarioRepository.save(usuario);
+            log.info("Usuário criado: id={}", salvo.getId()); // e-mail (PII) não é logado
+            return usuarioMapper.toResponse(salvo);
+        } catch (RuntimeException ex) {
+            log.warn("Nome de usuário já cadastrado");
+            throw new UsernameUniqueViolationException(
+                    String.format("O nome do usuário '%s' já existe", usuarioRequestDTO.username()));
+        }
     }
 
     @Transactional()
     public UsuarioResponseDTO getById(Long id) {
         log.debug("Buscando usuário id={}", id);
-        Usuario usuario = usuarioRepository.findById(id).orElse(null);
-        if (usuario == null) {
-            log.warn("Usuário não encontrado: id={}", id);
-        }
-        return usuarioMapper.toResponse(usuario);
+        return usuarioMapper.toResponse(usuarioRepository.findById(id).orElseThrow(
+                () -> {
+                    log.warn("Usuário não encontrado: id={}", id);
+                    return new EntityNotFoundException(String.format("Usuário com id=%d não encontrado", id));
+                }
+        ));
     }
 
-    public UsuarioResponseDTO updatePassword(Long id, String password) {
-        Usuario usuario = usuarioRepository.findById(id).orElse(null);
-        if (usuario != null) {
-            usuario.setPassword(password);
-            log.info("Senha atualizada: id={}", id);
-            return usuarioMapper.toResponse(usuarioRepository.save(usuario));
+    public void updatePassword(Long id, UsuarioSenhaDTO dto) {
+        Usuario usuario = usuarioRepository.findById(id).orElseThrow(
+                () -> {
+                    log.warn("Atualização de senha para usuário inexistente: id={}", id);
+                    return new EntityNotFoundException(String.format("Usuário com id=%d não encontrado", id));
+                }
+        );
+
+        if (!usuario.getPassword().equals(dto.senhaAtual())) {
+            log.warn("Senha atual não confere: id={}", id);
+            throw new PasswordInvalidException("A senha atual não confere");
         }
-        log.warn("Atualização de senha para usuário inexistente: id={}", id);
-        return null;
+
+        if (!dto.novaSenha().equals(dto.confirmaSenha())) {
+            log.warn("Nova senha difere da confirmação: id={}", id);
+            throw new PasswordInvalidException("A nova senha não confere com a confirmação de senha");
+        }
+
+        usuario.setPassword(dto.novaSenha());
+        usuarioRepository.save(usuario);
+        log.info("Senha atualizada: id={}", id);
     }
 
     public List<UsuarioResponseDTO> getAll() {

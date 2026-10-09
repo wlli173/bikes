@@ -66,11 +66,15 @@ export default function () {
     // PATCH — alterar senha
     const patchRes = http.patch(
       `${BASE_URL}/api/v1/usuarios/${userId}`,
-      JSON.stringify({ password: "nova12" }),
+      JSON.stringify({
+        senhaAtual: "senha1",
+        novaSenha: "nova12",
+        confirmaSenha: "nova12",
+      }),
       { headers }
     );
     check(patchRes, {
-      "PATCH /usuarios/{id} — 200": (r) => r.status === 200,
+      "PATCH /usuarios/{id} — 204": (r) => r.status === 204,
     });
   }
 

@@ -73,14 +73,65 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void atualizaSenhaRetorna200() throws Exception {
+    void atualizaSenhaRetorna204() throws Exception {
         String id = criarUsuario(emailUnico());
 
         mockMvc.perform(patch(URL + "/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"654321\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(Long.parseLong(id)));
+                        .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(patch(URL + "/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senhaAtual\":\"654321\",\"novaSenha\":\"111111\",\"confirmaSenha\":\"111111\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void senhaAtualInvalidaRetorna400() throws Exception {
+        String id = criarUsuario(emailUnico());
+
+        mockMvc.perform(patch(URL + "/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senhaAtual\":\"000000\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("A senha atual não confere"));
+    }
+
+    @Test
+    void novaSenhaDiferenteDaConfirmacaoRetorna400() throws Exception {
+        String id = criarUsuario(emailUnico());
+
+        mockMvc.perform(patch(URL + "/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"111111\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("A nova senha não confere com a confirmação de senha"));
+    }
+
+    @Test
+    void camposDeSenhaInvalidosRetornam422() throws Exception {
+        String id = criarUsuario(emailUnico());
+
+        mockMvc.perform(patch(URL + "/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senhaAtual\":\"\",\"novaSenha\":\"123\",\"confirmaSenha\":\"\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.errors.senhaAtual").exists())
+                .andExpect(jsonPath("$.errors.novaSenha").exists())
+                .andExpect(jsonPath("$.errors.confirmaSenha").exists());
+    }
+
+    @Test
+    void atualizaSenhaDeUsuarioInexistenteRetorna404() throws Exception {
+        mockMvc.perform(patch(URL + "/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
     }
 
     @Test
