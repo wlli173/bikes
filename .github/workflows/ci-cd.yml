@@ -37,7 +37,7 @@ jobs:
           java-version: "25"
           cache: maven
 
-      - name: Compilar e executar testes
+      - name: Compilar e executar testes unitários e de integração
         run: |
           chmod +x mvnw
           ./mvnw -B verify
@@ -46,56 +46,79 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          reports=(target/surefire-reports/*.txt)
-          if (( ${#reports[@]} == 0 )); then
-            echo "::error::Autoverificação falhou: nenhum relatório Surefire em target/surefire-reports"
-            exit 1
-          fi
-          run=0
-          fail=0
-          err=0
-          for f in "${reports[@]}"; do
-            line=$(grep -E 'Tests run: ' "$f" | tail -n 1 || true)
-            if [[ -z "$line" ]]; then
-              echo "::error::Relatório sem resumo de testes: $f"
-              exit 1
-            fi
-            if [[ "$line" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
-              run=$((run + BASH_REMATCH[1]))
-              fail=$((fail + BASH_REMATCH[2]))
-              err=$((err + BASH_REMATCH[3]))
-            else
-              echo "::error::Resumo ilegível em $f: $line"
-              exit 1
-            fi
-          done
-          echo "Tests run: ${run}, Failures: ${fail}, Errors: ${err}"
-          if (( run == 0 || fail > 0 || err > 0 )); then
-            echo "::error::Autoverificação dos testes falhou (run=${run} failures=${fail} errors=${err})"
-            exit 1
-          fi
-          echo "OK: ${run} testes concluídos sem falhas nem erros"
           {
             echo "### Autoverificação — testes"
-            echo "Confirmados **${run}** testes, 0 falhas e 0 erros nos relatórios Surefire."
           } >> "$GITHUB_STEP_SUMMARY"
+
+          check_suite() {
+            local dir="$1"
+            local label="$2"
+            local reports=("$dir"/*.txt)
+            local run=0 fail=0 err=0 line r fa e f
+            if (( ${#reports[@]} == 0 )); then
+              echo "::error::Autoverificação falhou: nenhum relatório em ${dir} (${label})"
+              return 1
+            fi
+            for f in "${reports[@]}"; do
+              line=$(grep -E 'Tests run: ' "$f" | tail -n 1 || true)
+              if [[ -z "$line" ]]; then
+                echo "::error::Relatório sem resumo de testes: $f"
+                return 1
+              fi
+              if [[ "$line" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
+                r="${BASH_REMATCH[1]}"
+                fa="${BASH_REMATCH[2]}"
+                e="${BASH_REMATCH[3]}"
+                run=$((run + r))
+                fail=$((fail + fa))
+                err=$((err + e))
+              else
+                echo "::error::Resumo ilegível em $f: $line"
+                return 1
+              fi
+            done
+            echo "${label}: Tests run: ${run}, Failures: ${fail}, Errors: ${err}"
+            if (( run == 0 || fail > 0 || err > 0 )); then
+              echo "::error::Autoverificação ${label} falhou (run=${run} failures=${fail} errors=${err})"
+              return 1
+            fi
+            echo "OK: ${label} — ${run} testes concluídos sem falhas nem erros"
+            echo "Confirmados **${run}** testes de ${label}, 0 falhas e 0 erros." >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          status=0
+          check_suite target/surefire-reports "unitários (Surefire)" || status=1
+          check_suite target/failsafe-reports "integração (Failsafe)" || status=1
+          exit "$status"
 
       - name: Resumo dos testes
         if: always()
         run: |
           {
-            echo "### Testes (Surefire)"
+            echo "### Testes unitários (Surefire)"
             echo '```'
             grep -h "Tests run" target/surefire-reports/*.txt 2>/dev/null || echo "Sem relatórios"
             echo '```'
+            echo "### Testes de integração (Failsafe)"
+            echo '```'
+            grep -h "Tests run" target/failsafe-reports/*.txt 2>/dev/null || echo "Sem relatórios"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publicar relatórios de teste
+      - name: Publicar relatórios de teste unitário
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: surefire-reports
           path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Publicar relatórios de teste de integração
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: failsafe-reports
+          path: target/failsafe-reports/
           retention-days: 7
 
   build-and-scan:
