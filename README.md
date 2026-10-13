@@ -195,7 +195,7 @@ uid=100(spring) gid=101(spring)
 
 ```mermaid
 flowchart LR
-    A[push / PR] --> T["1. Compilação e testes<br/>autoverifica Surefire"]
+    A[push / PR] --> T["1. Compilação e testes<br/>autoverifica Surefire e Failsafe"]
     T --> B["2. Build e scan<br/>autoverifica imagem + Trivy"]
     B --> P["3. Publicação GHCR<br/>autoverifica digest no registry"]
 ```
@@ -204,7 +204,7 @@ Cada segmento só fica verde depois de **confirmar o próprio resultado**. O job
 
 | Segmento | O que faz | Autoverificação |
 |----------|-----------|-----------------|
-| **1. Compilação e testes** | Java 25 (Temurin), cache Maven, `./mvnw -B verify`; relatórios Surefire no *job summary* e como artefato | Lê os `.txt` do Surefire e **falha** se não houver testes, se o resumo for ilegível ou se `Failures`/`Errors` > 0 |
+| **1. Compilação e testes** | Java 25 (Temurin), cache Maven, `./mvnw -B verify`. O Surefire roda os unitários (`*Test.java`, JUnit 5 + Mockito) e o Failsafe roda a integração (`*IT.java`) | Lê os relatórios do Surefire e do Failsafe e **falha** se uma das suítes não tiver testes, se o resumo for ilegível ou se `Failures`/`Errors` > 0 |
 | **2. Build e scan** | `docker/build-push-action` (Dockerfile multistage, cache `type=gha`). A imagem é construída **uma única vez**, verificada (`bikes:ci` sem `javac`/`mvn`) e escaneada com **Trivy** | Confirma que `bikes:ci` existe, roda como `spring`, o entrypoint é `java` e o relatório `trivy-report.txt` foi gerado. Em seguida exporta **essa** imagem |
 | **3. Publicação no GHCR** | Carrega o artefato do segmento 2 (a imagem já escaneada) e faz push de `sha-<commit>`, `latest` (branch padrão) e `pr-<n>` (PRs internos) | Consulta a API do GHCR e **falha** se a tag não responder HTTP 200 ou se o `Docker-Content-Digest` for diferente do digest devolvido pelo push. PRs de forks não executam este segmento |
 
@@ -304,13 +304,12 @@ Além do endpoint de demonstração, a aplicação registra eventos reais de neg
 
 ## ✅ Testes automatizados
 
-9 testes executados pela esteira (`./mvnw verify`):
+A esteira roda `./mvnw verify`, que executa as duas suítes:
 
-| Classe | O que valida |
-|--------|--------------|
-| `BikesApplicationTests` | Contexto Spring sobe |
-| `UsuarioControllerTest` | `201` na criação, `422` com erros por campo, `200`/`404` na busca, `200` no PATCH, listagem |
-| `ObservabilidadeTest` | `/actuator/health` = `UP` e `/actuator/prometheus` expõe métricas da JVM (contrato usado pelo compose e pelo Prometheus) |
+| Suíte | Plugin | O que valida |
+|-------|--------|--------------|
+| **Unitários** (`*Test.java`) | Surefire | `UsuarioService`, `UsuarioController` (`@WebMvcTest` + Mockito), `ApiExceptionHandler`, `UsuarioMapper`, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
+| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2: API de usuários (incluindo `409` de e-mail duplicado e `204` na troca de senha), serviço, repositório, logs de demonstração, health e Prometheus |
 
 Rodar localmente sem instalar Java:
 

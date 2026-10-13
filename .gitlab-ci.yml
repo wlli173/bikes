@@ -35,13 +35,14 @@ compile-and-test:
     paths:
       - .m2/repository
   script:
-    - mvn -B test -DfailIfNoTests=false
+    - mvn -B verify
   artifacts:
     when: always
     expire_in: 7 days
     reports:
       junit:
         - target/surefire-reports/TEST-*.xml
+        - target/failsafe-reports/TEST-*.xml
 
 build-image:
   extends: .docker
