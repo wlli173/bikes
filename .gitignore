@@ -31,3 +31,23 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Sistema ###
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+### Plugin local de requisições HTTP (não faz parte da entrega) ###
+.fastRequest/
+
+### Artefatos gerados pela esteira ou pelo Docker, fora do repositório ###
+trivy-report.txt
+image-export/
+*.tar
+
+### Logs locais ###
+*.log
+logs/
+
+# O .env permanece versionado de propósito: senhas só do ambiente de avaliação,
+# para o `docker compose up --build` subir sem passo manual.
