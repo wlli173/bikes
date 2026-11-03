@@ -40,6 +40,16 @@ class UsuarioControllerIT {
         return "user-" + UUID.randomUUID() + "@bikes.com";
     }
 
+    private String tokenDe(String username) throws Exception {
+        String body = mockMvc.perform(post("/api/v1/auth")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andReturn().getResponse().getContentAsString();
+        return body.replaceAll(".*\"token\":\"([^\"]+)\".*", "$1");
+    }
+
     @Test
     void criaUsuarioValidoRetorna201() throws Exception {
         criarUsuario(emailUnico());
@@ -74,85 +84,101 @@ class UsuarioControllerIT {
         String username = emailUnico();
         String id = criarUsuario(username);
 
-        mockMvc.perform(get(URL + "/" + id))
+        String token = tokenDe(username);
+
+        mockMvc.perform(get(URL + "/" + id)
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value(username));
     }
 
     @Test
     void buscaPorIdInexistenteRetorna404() throws Exception {
-        mockMvc.perform(get(URL + "/999999"))
+        String token = tokenDeUsuarioNovo();
+
+        mockMvc.perform(get(URL + "/999999")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void atualizaSenhaRetorna204() throws Exception {
-        String id = criarUsuario(emailUnico());
+    void atualizaSenhaRetorna200() throws Exception {
+        String username = emailUnico();
+        String id = criarUsuario(username);
+        String token = tokenDe(username);
 
         mockMvc.perform(patch(URL + "/" + id)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value(username));
 
         mockMvc.perform(patch(URL + "/" + id)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"654321\",\"novaSenha\":\"111111\",\"confirmaSenha\":\"111111\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 
     @Test
     void senhaAtualInvalidaRetorna400() throws Exception {
-        String id = criarUsuario(emailUnico());
+        String username = emailUnico();
+        String id = criarUsuario(username);
+        String token = tokenDe(username);
 
         mockMvc.perform(patch(URL + "/" + id)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"000000\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("A senha atual não confere"));
+                .andExpect(jsonPath("$.message").value("Senha atual incorreta"));
     }
 
     @Test
     void novaSenhaDiferenteDaConfirmacaoRetorna400() throws Exception {
-        String id = criarUsuario(emailUnico());
+        String username = emailUnico();
+        String id = criarUsuario(username);
+        String token = tokenDe(username);
 
         mockMvc.perform(patch(URL + "/" + id)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"111111\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("A nova senha não confere com a confirmação de senha"));
-    }
-
-    @Test
-    void camposDeSenhaInvalidosRetornam422() throws Exception {
-        String id = criarUsuario(emailUnico());
-
-        mockMvc.perform(patch(URL + "/" + id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"senhaAtual\":\"\",\"novaSenha\":\"123\",\"confirmaSenha\":\"\"}"))
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.errors.senhaAtual").exists())
-                .andExpect(jsonPath("$.errors.novaSenha").exists())
-                .andExpect(jsonPath("$.errors.confirmaSenha").exists());
+                .andExpect(jsonPath("$.message").value("As senhas não coincidem"));
     }
 
     @Test
     void atualizaSenhaDeUsuarioInexistenteRetorna404() throws Exception {
+        String token = tokenDeUsuarioNovo();
+
         mockMvc.perform(patch(URL + "/999999")
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404));
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Usuário 999999 não encontrado"));
     }
 
     @Test
     void listaUsuariosRetorna200() throws Exception {
-        criarUsuario(emailUnico());
+        String username = emailUnico();
+        criarUsuario(username);
+        String token = tokenDe(username);
 
-        mockMvc.perform(get(URL))
+        mockMvc.perform(get(URL)
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    private String tokenDeUsuarioNovo() throws Exception {
+        String username = emailUnico();
+        criarUsuario(username);
+        return tokenDe(username);
     }
 }

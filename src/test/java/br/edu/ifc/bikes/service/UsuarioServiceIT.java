@@ -2,7 +2,6 @@ package br.edu.ifc.bikes.service;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
-import br.edu.ifc.bikes.dto.UsuarioSenhaDTO;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
@@ -10,6 +9,7 @@ import br.edu.ifc.bikes.repository.UsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
 
@@ -25,6 +25,9 @@ class UsuarioServiceIT {
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void createPersisteUsuarioCliente() {
@@ -65,23 +68,27 @@ class UsuarioServiceIT {
     }
 
     @Test
-    void updatePasswordPersisteNovaSenha() {
+    void updatePasswordPersisteNovaSenhaCodificada() {
         Long id = usuarioService.create(new UsuarioRequestDTO(emailUnico(), "123456")).id();
 
-        usuarioService.updatePassword(id, new UsuarioSenhaDTO("123456", "654321", "654321"));
+        UsuarioResponseDTO atualizado = usuarioService.updatePassword(id, "654321", "654321", "123456");
 
-        assertEquals("654321", usuarioRepository.findById(id).orElseThrow().getPassword());
+        assertEquals(id, atualizado.id());
+        assertTrue(passwordEncoder.matches("654321", usuarioRepository.findById(id).orElseThrow().getPassword()));
     }
 
     @Test
     void updatePasswordRejeitaSenhaAtualEConfirmacao() {
         Long id = usuarioService.create(new UsuarioRequestDTO(emailUnico(), "123456")).id();
 
-        assertThrows(PasswordInvalidException.class,
-                () -> usuarioService.updatePassword(id, new UsuarioSenhaDTO("000000", "654321", "654321")));
-        assertThrows(PasswordInvalidException.class,
-                () -> usuarioService.updatePassword(id, new UsuarioSenhaDTO("123456", "654321", "111111")));
-        assertEquals("123456", usuarioRepository.findById(id).orElseThrow().getPassword());
+        PasswordInvalidException senhaAtual = assertThrows(PasswordInvalidException.class,
+                () -> usuarioService.updatePassword(id, "654321", "654321", "000000"));
+        PasswordInvalidException confirmacao = assertThrows(PasswordInvalidException.class,
+                () -> usuarioService.updatePassword(id, "654321", "111111", "123456"));
+
+        assertEquals("Senha atual incorreta", senhaAtual.getMessage());
+        assertEquals("As senhas não coincidem", confirmacao.getMessage());
+        assertTrue(passwordEncoder.matches("123456", usuarioRepository.findById(id).orElseThrow().getPassword()));
     }
 
     @Test

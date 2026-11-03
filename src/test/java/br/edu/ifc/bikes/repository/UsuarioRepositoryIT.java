@@ -37,6 +37,14 @@ class UsuarioRepositoryIT {
         assertThrows(DataIntegrityViolationException.class, () -> usuarioRepository.saveAndFlush(repetido));
     }
 
+    @Test
+    void findByUsernameERole() {
+        Usuario salvo = usuarioRepository.saveAndFlush(novoUsuario());
+
+        assertEquals(salvo.getId(), usuarioRepository.findByUsername(salvo.getUsername()).orElseThrow().getId());
+        assertEquals(Usuario.Role.CLIENTE, usuarioRepository.findRoleByUsername(salvo.getUsername()));
+    }
+
     private static Usuario novoUsuario() {
         Usuario usuario = new Usuario();
         usuario.setUsername("repo-" + UUID.randomUUID() + "@bikes.com");
