@@ -2,13 +2,13 @@ package br.edu.ifc.bikes.web.controller;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
-import br.edu.ifc.bikes.dto.UsuarioSenhaDTO;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import br.edu.ifc.bikes.service.UsuarioService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = UsuarioController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class UsuarioControllerTest {
 
     private static final String URL = "/api/v1/usuarios";
@@ -109,53 +110,44 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void updatePasswordRetorna204() throws Exception {
-        UsuarioSenhaDTO dto = new UsuarioSenhaDTO("123456", "654321", "654321");
+    void updatePasswordRetorna200() throws Exception {
+        when(usuarioService.updatePassword(3L, "654321", "654321", "123456"))
+                .thenReturn(new UsuarioResponseDTO(3L, "ana@bikes.com", "CLIENTE"));
 
         mockMvc.perform(patch(URL + "/3")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.username").value("ana@bikes.com"));
 
-        verify(usuarioService).updatePassword(eq(3L), eq(dto));
+        verify(usuarioService).updatePassword(3L, "654321", "654321", "123456");
     }
 
     @Test
     void updatePasswordComSenhaInvalidaRetorna400() throws Exception {
-        doThrow(new PasswordInvalidException("A senha atual não confere"))
-                .when(usuarioService).updatePassword(eq(3L), any());
+        doThrow(new PasswordInvalidException("Senha atual incorreta"))
+                .when(usuarioService).updatePassword(eq(3L), any(), any(), any());
 
         mockMvc.perform(patch(URL + "/3")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"000000\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("A senha atual não confere"));
+                .andExpect(jsonPath("$.message").value("Senha atual incorreta"));
     }
 
     @Test
     void updatePasswordDeUsuarioInexistenteRetorna404() throws Exception {
-        doThrow(new EntityNotFoundException("Usuário com id=9 não encontrado"))
-                .when(usuarioService).updatePassword(eq(9L), any());
+        doThrow(new EntityNotFoundException("Usuário 9 não encontrado"))
+                .when(usuarioService).updatePassword(eq(9L), any(), any(), any());
 
         mockMvc.perform(patch(URL + "/9")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404));
-    }
-
-    @Test
-    void updatePasswordComCamposInvalidosRetorna422SemChamarServico() throws Exception {
-        mockMvc.perform(patch(URL + "/3")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"senhaAtual\":\"\",\"novaSenha\":\"123\",\"confirmaSenha\":\"\"}"))
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.errors.senhaAtual").exists())
-                .andExpect(jsonPath("$.errors.novaSenha").exists())
-                .andExpect(jsonPath("$.errors.confirmaSenha").exists());
-
-        verify(usuarioService, never()).updatePassword(any(), any());
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Usuário 9 não encontrado"));
     }
 
     @Test

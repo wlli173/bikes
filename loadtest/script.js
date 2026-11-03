@@ -48,8 +48,27 @@ export default function () {
     "POST /usuarios inválido — 422": (r) => r.status === 422,
   });
 
+  let authHeaders = headers;
+  if (createRes.status === 201) {
+    const authRes = http.post(
+      `${BASE_URL}/api/v1/auth`,
+      JSON.stringify({ username: username, password: "senha1" }),
+      { headers }
+    );
+    check(authRes, {
+      "POST /auth — 200": (r) => r.status === 200,
+    });
+    if (authRes.status === 200) {
+      const token = JSON.parse(authRes.body).token;
+      authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+    }
+  }
+
   // GET — listar todos
-  const listRes = http.get(`${BASE_URL}/api/v1/usuarios`);
+  const listRes = http.get(`${BASE_URL}/api/v1/usuarios`, { headers: authHeaders });
   check(listRes, {
     "GET /usuarios — 200": (r) => r.status === 200,
   });
@@ -58,7 +77,7 @@ export default function () {
   if (createRes.status === 201) {
     const userId = JSON.parse(createRes.body).id;
 
-    const getRes = http.get(`${BASE_URL}/api/v1/usuarios/${userId}`);
+    const getRes = http.get(`${BASE_URL}/api/v1/usuarios/${userId}`, { headers: authHeaders });
     check(getRes, {
       "GET /usuarios/{id} — 200": (r) => r.status === 200,
     });
@@ -71,10 +90,10 @@ export default function () {
         novaSenha: "nova12",
         confirmaSenha: "nova12",
       }),
-      { headers }
+      { headers: authHeaders }
     );
     check(patchRes, {
-      "PATCH /usuarios/{id} — 204": (r) => r.status === 204,
+      "PATCH /usuarios/{id} — 200": (r) => r.status === 200,
     });
   }
 
@@ -85,7 +104,7 @@ export default function () {
   http.get(`${BASE_URL}/api/v1/demo/log/error`);
 
   // GET inexistente — gerar 404
-  http.get(`${BASE_URL}/api/v1/usuarios/999999`);
+  http.get(`${BASE_URL}/api/v1/usuarios/999999`, { headers: authHeaders });
 
   sleep(1);
 }

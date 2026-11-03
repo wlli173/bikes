@@ -2,7 +2,6 @@ package br.edu.ifc.bikes.service;
 
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
-import br.edu.ifc.bikes.dto.UsuarioSenhaDTO;
 import br.edu.ifc.bikes.dto.mapper.UsuarioMapper;
 import br.edu.ifc.bikes.entity.Usuario;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
@@ -11,10 +10,10 @@ import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import br.edu.ifc.bikes.repository.UsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,22 +35,29 @@ class UsuarioServiceTest {
     @Mock
     private UsuarioMapper usuarioMapper;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private UsuarioService usuarioService;
 
     @Test
-    void createPersisteEDevolveResposta() {
+    void createCodificaSenhaEDevolveResposta() {
         UsuarioRequestDTO request = new UsuarioRequestDTO("ana@bikes.com", "123456");
         Usuario usuario = usuario(null, "ana@bikes.com", "123456");
-        Usuario salvo = usuario(10L, "ana@bikes.com", "123456");
         UsuarioResponseDTO response = new UsuarioResponseDTO(10L, "ana@bikes.com", "CLIENTE");
 
         when(usuarioMapper.toUsuario(request)).thenReturn(usuario);
-        when(usuarioRepository.save(usuario)).thenReturn(salvo);
-        when(usuarioMapper.toResponse(salvo)).thenReturn(response);
+        when(passwordEncoder.encode("123456")).thenReturn("hash");
+        when(usuarioRepository.save(usuario)).thenAnswer(invocation -> {
+            Usuario salvo = invocation.getArgument(0);
+            salvo.setId(10L);
+            return salvo;
+        });
+        when(usuarioMapper.toResponse(usuario)).thenReturn(response);
 
         assertEquals(response, usuarioService.create(request));
-        verify(usuarioRepository).save(usuario);
+        assertEquals("hash", usuario.getPassword());
     }
 
     @Test
@@ -59,6 +65,7 @@ class UsuarioServiceTest {
         UsuarioRequestDTO request = new UsuarioRequestDTO("ana@bikes.com", "123456");
         Usuario usuario = usuario(null, "ana@bikes.com", "123456");
         when(usuarioMapper.toUsuario(request)).thenReturn(usuario);
+        when(passwordEncoder.encode("123456")).thenReturn("hash");
         when(usuarioRepository.save(usuario)).thenThrow(new RuntimeException("duplicado"));
 
         UsernameUniqueViolationException ex = assertThrows(
@@ -69,7 +76,7 @@ class UsuarioServiceTest {
 
     @Test
     void getByIdDevolveUsuarioEncontrado() {
-        Usuario usuario = usuario(4L, "ana@bikes.com", "123456");
+        Usuario usuario = usuario(4L, "ana@bikes.com", "hash");
         UsuarioResponseDTO response = new UsuarioResponseDTO(4L, "ana@bikes.com", "CLIENTE");
         when(usuarioRepository.findById(4L)).thenReturn(Optional.of(usuario));
         when(usuarioMapper.toResponse(usuario)).thenReturn(response);
@@ -88,15 +95,17 @@ class UsuarioServiceTest {
     }
 
     @Test
-    void updatePasswordAlteraSenhaQuandoDadosConferem() {
-        Usuario usuario = usuario(3L, "ana@bikes.com", "123456");
+    void updatePasswordCodificaNovaSenhaQuandoDadosConferem() {
+        Usuario usuario = usuario(3L, "ana@bikes.com", "hash-atual");
+        UsuarioResponseDTO response = new UsuarioResponseDTO(3L, "ana@bikes.com", "CLIENTE");
         when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("123456", "hash-atual")).thenReturn(true);
+        when(passwordEncoder.encode("654321")).thenReturn("hash-nova");
+        when(usuarioMapper.toResponse(usuario)).thenReturn(response);
 
-        usuarioService.updatePassword(3L, new UsuarioSenhaDTO("123456", "654321", "654321"));
-
-        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(captor.capture());
-        assertEquals("654321", captor.getValue().getPassword());
+        assertEquals(response, usuarioService.updatePassword(3L, "654321", "654321", "123456"));
+        assertEquals("hash-nova", usuario.getPassword());
+        verify(usuarioRepository).save(usuario);
     }
 
     @Test
@@ -104,39 +113,62 @@ class UsuarioServiceTest {
         when(usuarioRepository.findById(9L)).thenReturn(Optional.empty());
 
         EntityNotFoundException ex = assertThrows(EntityNotFoundException.class, () ->
-                usuarioService.updatePassword(9L, new UsuarioSenhaDTO("123456", "654321", "654321")));
+                usuarioService.updatePassword(9L, "654321", "654321", "123456"));
 
-        assertEquals("Usuário com id=9 não encontrado", ex.getMessage());
+        assertEquals("Usuário 9 não encontrado", ex.getMessage());
         verify(usuarioRepository, never()).save(any());
     }
 
     @Test
     void updatePasswordComSenhaAtualIncorretaLancaPasswordInvalid() {
-        Usuario usuario = usuario(3L, "ana@bikes.com", "123456");
+        Usuario usuario = usuario(3L, "ana@bikes.com", "hash-atual");
         when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("000000", "hash-atual")).thenReturn(false);
 
         PasswordInvalidException ex = assertThrows(PasswordInvalidException.class, () ->
-                usuarioService.updatePassword(3L, new UsuarioSenhaDTO("000000", "654321", "654321")));
+                usuarioService.updatePassword(3L, "654321", "654321", "000000"));
 
-        assertEquals("A senha atual não confere", ex.getMessage());
+        assertEquals("Senha atual incorreta", ex.getMessage());
         verify(usuarioRepository, never()).save(any());
     }
 
     @Test
     void updatePasswordComConfirmacaoDiferenteLancaPasswordInvalid() {
-        Usuario usuario = usuario(3L, "ana@bikes.com", "123456");
-        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuario));
-
         PasswordInvalidException ex = assertThrows(PasswordInvalidException.class, () ->
-                usuarioService.updatePassword(3L, new UsuarioSenhaDTO("123456", "654321", "111111")));
+                usuarioService.updatePassword(3L, "654321", "111111", "123456"));
 
-        assertEquals("A nova senha não confere com a confirmação de senha", ex.getMessage());
-        verify(usuarioRepository, never()).save(any());
+        assertEquals("As senhas não coincidem", ex.getMessage());
+        verify(usuarioRepository, never()).findById(any());
+    }
+
+    @Test
+    void buscarPorNomeDevolveUsuario() {
+        Usuario usuario = usuario(1L, "ana@bikes.com", "hash");
+        when(usuarioRepository.findByUsername("ana@bikes.com")).thenReturn(Optional.of(usuario));
+
+        assertEquals(usuario, usuarioService.buscarPorNome("ana@bikes.com"));
+    }
+
+    @Test
+    void buscarPorNomeInexistenteLancaEntityNotFound() {
+        when(usuarioRepository.findByUsername("ana@bikes.com")).thenReturn(Optional.empty());
+
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class,
+                () -> usuarioService.buscarPorNome("ana@bikes.com"));
+
+        assertEquals("Usuário 'ana@bikes.com' não encontrado", ex.getMessage());
+    }
+
+    @Test
+    void buscarRolePorUsernameDelegaAoRepositorio() {
+        when(usuarioRepository.findRoleByUsername("ana@bikes.com")).thenReturn(Usuario.Role.ADMIN);
+
+        assertEquals(Usuario.Role.ADMIN, usuarioService.buscarRolePorUsername("ana@bikes.com"));
     }
 
     @Test
     void getAllMapeiaUsuariosDoRepositorio() {
-        Usuario usuario = usuario(1L, "ana@bikes.com", "123456");
+        Usuario usuario = usuario(1L, "ana@bikes.com", "hash");
         List<Usuario> usuarios = List.of(usuario);
         List<UsuarioResponseDTO> resposta = List.of(new UsuarioResponseDTO(1L, "ana@bikes.com", "CLIENTE"));
         when(usuarioRepository.findAll()).thenReturn(usuarios);

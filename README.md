@@ -137,10 +137,11 @@ docker compose --profile loadtest down -v --remove-orphans
 
 | Método | Rota | Descrição | Respostas |
 |--------|------|-----------|-----------|
-| `POST` | `/api/v1/usuarios` | Cria usuário (`username` = e-mail, `password` = 6 caracteres) | `201`, `422` |
-| `GET` | `/api/v1/usuarios` | Lista usuários | `200` |
-| `GET` | `/api/v1/usuarios/{id}` | Busca por id | `200`, `404` |
-| `PATCH` | `/api/v1/usuarios/{id}` | Atualiza a senha | `200`, `404` |
+| `POST` | `/api/v1/usuarios` | Cria usuário (`username` = e-mail, `password` = 6 caracteres). Rota pública | `201`, `409`, `422` |
+| `POST` | `/api/v1/auth` | Autentica e devolve um JWT (`Bearer`). Rota pública | `200`, `400` |
+| `GET` | `/api/v1/usuarios` | Lista usuários. Exige `Authorization: Bearer` | `200`, `401` |
+| `GET` | `/api/v1/usuarios/{id}` | Busca por id. Exige `Authorization: Bearer` | `200`, `404`, `401` |
+| `PATCH` | `/api/v1/usuarios/{id}` | Atualiza a senha (BCrypt) e devolve o usuário. Exige `Authorization: Bearer` | `200`, `400`, `404`, `401` |
 | `GET` | `/api/v1/demo/log` | Emite logs DEBUG/INFO/WARN/ERROR (evidência do Graylog) | `200` |
 | `GET` | `/api/v1/demo/log/error` | Simula erro 500 | `500` |
 
@@ -309,7 +310,7 @@ A esteira roda `./mvnw verify`, que executa as duas suítes:
 | Suíte | Plugin | O que valida |
 |-------|--------|--------------|
 | **Unitários** (`*Test.java`) | Surefire | `UsuarioService`, `UsuarioController` (`@WebMvcTest` + Mockito), `ApiExceptionHandler`, `UsuarioMapper`, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
-| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2: API de usuários (incluindo `409` de e-mail duplicado e `204` na troca de senha), serviço, repositório, logs de demonstração, health e Prometheus |
+| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2: API de usuários com JWT (incluindo `409` de e-mail duplicado e `200` na troca de senha), serviço, repositório, logs de demonstração, health e Prometheus |
 
 Rodar localmente sem instalar Java:
 
