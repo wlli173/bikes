@@ -23,7 +23,7 @@ class UsuarioRepositoryIT {
         Usuario salvo = usuarioRepository.saveAndFlush(novoUsuario());
 
         assertTrue(salvo.getId() != null && salvo.getId() > 0);
-        assertEquals(Usuario.Role.CLIENTE, usuarioRepository.findById(salvo.getId()).orElseThrow().getRole());
+        assertEquals(Usuario.Role.ROLE_CLIENTE, usuarioRepository.findById(salvo.getId()).orElseThrow().getRole());
     }
 
     @Test
@@ -42,7 +42,7 @@ class UsuarioRepositoryIT {
         Usuario salvo = usuarioRepository.saveAndFlush(novoUsuario());
 
         assertEquals(salvo.getId(), usuarioRepository.findByUsername(salvo.getUsername()).orElseThrow().getId());
-        assertEquals(Usuario.Role.CLIENTE, usuarioRepository.findRoleByUsername(salvo.getUsername()));
+        assertEquals(Usuario.Role.ROLE_CLIENTE, usuarioRepository.findRoleByUsername(salvo.getUsername()));
     }
 
     private static Usuario novoUsuario() {

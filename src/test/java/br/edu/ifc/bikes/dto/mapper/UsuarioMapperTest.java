@@ -22,7 +22,7 @@ class UsuarioMapperTest {
         assertNull(usuario.getId());
         assertEquals("ana@bikes.com", usuario.getUsername());
         assertEquals("123456", usuario.getPassword());
-        assertEquals(Usuario.Role.CLIENTE, usuario.getRole());
+        assertEquals(Usuario.Role.ROLE_CLIENTE, usuario.getRole());
     }
 
     @Test
@@ -31,7 +31,7 @@ class UsuarioMapperTest {
         usuario.setId(7L);
         usuario.setUsername("ana@bikes.com");
         usuario.setPassword("123456");
-        usuario.setRole(Usuario.Role.ADMIN);
+        usuario.setRole(Usuario.Role.ROLE_ADMIN);
 
         UsuarioResponseDTO response = mapper.toResponse(usuario);
 
@@ -45,7 +45,7 @@ class UsuarioMapperTest {
         Usuario usuario = new Usuario();
         usuario.setId(1L);
         usuario.setUsername("ana@bikes.com");
-        usuario.setRole(Usuario.Role.CLIENTE);
+        usuario.setRole(Usuario.Role.ROLE_CLIENTE);
 
         List<UsuarioResponseDTO> respostas = mapper.toResponse(List.of(usuario));
 
