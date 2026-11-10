@@ -3,10 +3,13 @@ package br.edu.ifc.bikes;
 import br.edu.ifc.bikes.dto.UsuarioLoginDto;
 import br.edu.ifc.bikes.dto.UsuarioRequestDTO;
 import br.edu.ifc.bikes.dto.UsuarioResponseDTO;
+import br.edu.ifc.bikes.entity.Usuario;
 import br.edu.ifc.bikes.jwt.JwtToken;
+import br.edu.ifc.bikes.repository.UsuarioRepository;
 import br.edu.ifc.bikes.web.exception.ErrorMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
@@ -19,6 +22,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 class UsuarioIT {
     @LocalServerPort
     int port;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     WebTestClient testClient;
 
@@ -145,6 +151,10 @@ class UsuarioIT {
                 .bodyValue(new UsuarioRequestDTO("auth@gmail.com", "123456"))
                 .exchange()
                 .expectStatus().isCreated();
+
+        Usuario usuario = usuarioRepository.findByUsername("auth@gmail.com").orElseThrow();
+        usuario.setRole(Usuario.Role.ROLE_ADMIN);
+        usuarioRepository.saveAndFlush(usuario);
 
         JwtToken token = testClient.post()
                 .uri("/api/v1/auth")

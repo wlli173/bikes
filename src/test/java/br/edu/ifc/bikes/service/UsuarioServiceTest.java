@@ -161,9 +161,9 @@ class UsuarioServiceTest {
 
     @Test
     void buscarRolePorUsernameDelegaAoRepositorio() {
-        when(usuarioRepository.findRoleByUsername("ana@bikes.com")).thenReturn(Usuario.Role.ADMIN);
+        when(usuarioRepository.findRoleByUsername("ana@bikes.com")).thenReturn(Usuario.Role.ROLE_ADMIN);
 
-        assertEquals(Usuario.Role.ADMIN, usuarioService.buscarRolePorUsername("ana@bikes.com"));
+        assertEquals(Usuario.Role.ROLE_ADMIN, usuarioService.buscarRolePorUsername("ana@bikes.com"));
     }
 
     @Test

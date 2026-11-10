@@ -1,5 +1,7 @@
 package br.edu.ifc.bikes.web.controller;
 
+import br.edu.ifc.bikes.entity.Usuario;
+import br.edu.ifc.bikes.repository.UsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +25,9 @@ class UsuarioControllerIT {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     private String criarUsuario(String username) throws Exception {
         String body = mockMvc.perform(post(URL)
@@ -94,11 +99,20 @@ class UsuarioControllerIT {
 
     @Test
     void buscaPorIdInexistenteRetorna404() throws Exception {
-        String token = tokenDeUsuarioNovo();
+        String token = tokenAdmin();
 
         mockMvc.perform(get(URL + "/999999")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void clienteNaoConsultaUsuarioDeOutroId() throws Exception {
+        String token = tokenDeUsuarioNovo();
+
+        mockMvc.perform(get(URL + "/999999")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -152,23 +166,19 @@ class UsuarioControllerIT {
     }
 
     @Test
-    void atualizaSenhaDeUsuarioInexistenteRetorna404() throws Exception {
+    void atualizaSenhaDeOutroUsuarioRetorna403() throws Exception {
         String token = tokenDeUsuarioNovo();
 
         mockMvc.perform(patch(URL + "/999999")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"senhaAtual\":\"123456\",\"novaSenha\":\"654321\",\"confirmaSenha\":\"654321\"}"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value("Usuário 999999 não encontrado"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
     void listaUsuariosRetorna200() throws Exception {
-        String username = emailUnico();
-        criarUsuario(username);
-        String token = tokenDe(username);
+        String token = tokenAdmin();
 
         mockMvc.perform(get(URL)
                         .header("Authorization", "Bearer " + token))
@@ -176,9 +186,27 @@ class UsuarioControllerIT {
                 .andExpect(jsonPath("$").isArray());
     }
 
+    @Test
+    void clienteNaoListaUsuarios() throws Exception {
+        String token = tokenDeUsuarioNovo();
+
+        mockMvc.perform(get(URL)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
     private String tokenDeUsuarioNovo() throws Exception {
         String username = emailUnico();
         criarUsuario(username);
+        return tokenDe(username);
+    }
+
+    private String tokenAdmin() throws Exception {
+        String username = emailUnico();
+        criarUsuario(username);
+        Usuario usuario = usuarioRepository.findByUsername(username).orElseThrow();
+        usuario.setRole(Usuario.Role.ROLE_ADMIN);
+        usuarioRepository.saveAndFlush(usuario);
         return tokenDe(username);
     }
 }

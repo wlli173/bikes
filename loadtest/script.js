@@ -70,7 +70,7 @@ export default function () {
   // GET — listar todos
   const listRes = http.get(`${BASE_URL}/api/v1/usuarios`, { headers: authHeaders });
   check(listRes, {
-    "GET /usuarios — 200": (r) => r.status === 200,
+    "GET /usuarios — 403 para cliente": (r) => r.status === 403,
   });
 
   // GET /{id} — buscar por ID (usa o ID do usuário criado)
