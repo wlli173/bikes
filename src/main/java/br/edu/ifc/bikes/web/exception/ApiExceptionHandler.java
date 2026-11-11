@@ -1,5 +1,6 @@
 package br.edu.ifc.bikes.web.exception;
 
+import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.ClienteUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
@@ -38,6 +39,18 @@ public class ApiExceptionHandler {
             HttpServletRequest request){
 
         log.warn("Conflito de usuário único em {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
+    @ExceptionHandler(BicicletaUniqueViolationException.class)
+    public ResponseEntity<ErrorMessage> bicicletaUniqueViolationException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.warn("Conflito de bicicleta única em {} {}", request.getMethod(), request.getRequestURI());
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .contentType(MediaType.APPLICATION_JSON)
