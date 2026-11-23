@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<jasperreports.version>7.0.8</jasperreports.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -139,6 +140,29 @@
 			<groupId>de.siegmar</groupId>
 			<artifactId>logback-gelf</artifactId>
 			<version>6.1.2</version>
+		</dependency>
+
+		<!-- Relatórios com JasperReports (PDF). Na versão 7 o motor, o exportador PDF,
+		     o compilador JDT (compila os .jrxml em runtime) e as fontes são módulos separados. -->
+		<dependency>
+			<groupId>net.sf.jasperreports</groupId>
+			<artifactId>jasperreports</artifactId>
+			<version>${jasperreports.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>net.sf.jasperreports</groupId>
+			<artifactId>jasperreports-pdf</artifactId>
+			<version>${jasperreports.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>net.sf.jasperreports</groupId>
+			<artifactId>jasperreports-jdt</artifactId>
+			<version>${jasperreports.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>net.sf.jasperreports</groupId>
+			<artifactId>jasperreports-fonts</artifactId>
+			<version>${jasperreports.version}</version>
 		</dependency>
 	</dependencies>
 
