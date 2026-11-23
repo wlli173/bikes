@@ -142,6 +142,19 @@ docker compose --profile loadtest down -v --remove-orphans
 | `GET` | `/api/v1/usuarios` | Lista usuários. Exige `Authorization: Bearer` | `200`, `401` |
 | `GET` | `/api/v1/usuarios/{id}` | Busca por id. Exige `Authorization: Bearer` | `200`, `404`, `401` |
 | `PATCH` | `/api/v1/usuarios/{id}` | Atualiza a senha (BCrypt) e devolve o usuário. Exige `Authorization: Bearer` | `200`, `400`, `404`, `401` |
+| `POST` | `/api/v1/clientes` | Cadastra o cliente (`nome`, `cpf` único) vinculado ao usuário autenticado. Perfil `CLIENTE` | `201`, `403`, `409`, `422` |
+| `GET` | `/api/v1/clientes/detalhes` | Cliente recupera os próprios dados. Perfil `CLIENTE` | `200`, `403`, `404` |
+| `GET` | `/api/v1/clientes/{id}` | Busca por id. `ADMIN` consulta qualquer um; `CLIENTE` só o próprio | `200`, `403`, `404` |
+| `GET` | `/api/v1/clientes` | Lista todos os clientes. Perfil `ADMIN` | `200`, `403` |
+| `POST` | `/api/v1/bicicletas` | Cadastra bicicleta (`codigo` único, `modelo`, `status`). Perfil `ADMIN` | `201`, `403`, `409`, `422` |
+| `GET` | `/api/v1/bicicletas/{codigo}` | Localiza a bicicleta pelo código. Perfil `ADMIN` | `200`, `403`, `404` |
+| `GET` | `/api/v1/bicicletas` | Lista todas as bicicletas. Perfil `ADMIN` | `200`, `403` |
+| `PATCH` | `/api/v1/bicicletas/{codigo}/status` | Coloca em `MANUTENCAO` ou libera (`DISPONIVEL`). Bicicleta alugada só é liberada pela devolução. Perfil `ADMIN` | `200`, `403`, `404`, `409`, `422` |
+| `POST` | `/api/v1/locacoes` | Solicita locação: `codigoBicicleta` (opcional — sem ele o sistema escolhe uma disponível), `dataPrevistaDevolucao` e `cartao`. Perfil `CLIENTE` | `201`, `403`, `404`, `409`, `422` |
+| `PATCH` | `/api/v1/locacoes/{id}/devolucao` | Registra a devolução, calcula o valor (R$ 5,00 por hora iniciada) e libera a bicicleta; `{"problema":true}` a envia para manutenção. `ADMIN` ou dono da locação | `200`, `403`, `404`, `409` |
+| `GET` | `/api/v1/locacoes/{id}` | Busca por id. `ADMIN` ou dono da locação | `200`, `403`, `404` |
+| `GET` | `/api/v1/locacoes` | Lista todas as locações. Perfil `ADMIN` | `200`, `403` |
+| `GET` | `/api/v1/locacoes/relatorio` | Relatório: cliente, bicicleta, retirada/devolução, duração e status de cada locação. Perfil `ADMIN` | `200`, `403` |
 | `GET` | `/api/v1/demo/log` | Emite logs DEBUG/INFO/WARN/ERROR (evidência do Graylog) | `200` |
 | `GET` | `/api/v1/demo/log/error` | Simula erro 500 | `500` |
 
@@ -159,6 +172,31 @@ Entradas inválidas retornam `422` com os erros por campo (`ApiExceptionHandler`
 {"errors":{"password":"tamanho deve ser entre 6 e 6","username":"O email deve ser válido"},
  "message":"Campo(s) inválido(s)","method":"POST","path":"/api/v1/usuarios",
  "status":422,"statusMessage":"Unprocessable Content"}
+```
+
+Fluxo completo de uma locação (requisitos 4 a 8 do enunciado):
+
+```bash
+# 1. cliente autenticado se cadastra como cliente
+curl -X POST http://localhost:8080/api/v1/clientes -H "Authorization: Bearer $TOKEN_CLIENTE" \
+  -H "Content-Type: application/json" -d '{"nome":"Ana Silva","cpf":"12345678901"}'
+
+# 2. admin cadastra uma bicicleta
+curl -X POST http://localhost:8080/api/v1/bicicletas -H "Authorization: Bearer $TOKEN_ADMIN" \
+  -H "Content-Type: application/json" -d '{"codigo":"BK01","modelo":"Caloi Elite","status":"DISPONIVEL"}'
+
+# 3. cliente solicita a locação informando o cartão (só os 4 últimos dígitos são persistidos)
+curl -X POST http://localhost:8080/api/v1/locacoes -H "Authorization: Bearer $TOKEN_CLIENTE" \
+  -H "Content-Type: application/json" \
+  -d '{"codigoBicicleta":"BK01","dataPrevistaDevolucao":"2026-12-01T18:00:00",
+       "cartao":{"numero":"4111111111111111","titular":"ANA SILVA","validade":"12/30","cvv":"123"}}'
+
+# 4. devolução: calcula o valor, registra a data efetiva e libera a bicicleta (ou a envia para manutenção)
+curl -X PATCH http://localhost:8080/api/v1/locacoes/1/devolucao -H "Authorization: Bearer $TOKEN_CLIENTE" \
+  -H "Content-Type: application/json" -d '{"problema":true,"descricaoProblema":"Pneu furado"}'
+
+# 5. relatório de locações e devoluções (admin)
+curl http://localhost:8080/api/v1/locacoes/relatorio -H "Authorization: Bearer $TOKEN_ADMIN"
 ```
 
 ![Swagger UI](docs/evidencias/swagger-ui.png)
@@ -309,8 +347,8 @@ A esteira roda `./mvnw verify`, que executa as duas suítes:
 
 | Suíte | Plugin | O que valida |
 |-------|--------|--------------|
-| **Unitários** (`*Test.java`) | Surefire | `UsuarioService`, `UsuarioController` (`@WebMvcTest` + Mockito), `ApiExceptionHandler`, `UsuarioMapper`, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
-| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2: API de usuários com JWT (incluindo `409` de e-mail duplicado e `200` na troca de senha), serviço, repositório, logs de demonstração, health e Prometheus |
+| **Unitários** (`*Test.java`) | Surefire | Serviços (`Usuario`, `Cliente`, `Bicicleta`, `Locacao`), controllers (`@WebMvcTest` + Mockito), `ApiExceptionHandler`, mappers MapStruct, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
+| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2 e JWT: usuários, clientes (`/detalhes`, permissões por perfil), bicicletas (código único, troca de status), locações ponta a ponta (cadastro → locação → devolução com cálculo do valor → relatório), repositórios, logs de demonstração, health e Prometheus |
 
 Rodar localmente sem instalar Java:
 
