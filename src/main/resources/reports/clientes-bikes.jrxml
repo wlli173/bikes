@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Relatório de clientes cadastrados — formato JasperReports 7.
+  Alimentado pelo JasperService com a lista de ClienteResponseDTO.
+  Os estilos vêm do arquivo reports/styles/bikes-styles.jrtx, injetado pelo parâmetro REPORT_STYLES.
+-->
+<jasperReport name="clientes-bikes" language="java"
+              pageWidth="595" pageHeight="842" orientation="Portrait"
+              columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20"
+              whenNoDataType="AllSectionsNoDetail"
+              uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0001">
+
+    <template><![CDATA[$P{REPORT_STYLES}]]></template>
+
+    <parameter name="REPORT_STYLES" forPrompting="false" class="net.sf.jasperreports.engine.JRTemplate"/>
+    <parameter name="IMG_LOGO" forPrompting="false" class="java.io.InputStream"/>
+    <parameter name="REPORT_TITLE" forPrompting="false" class="java.lang.String">
+        <defaultValueExpression><![CDATA["Relatório de Clientes"]]></defaultValueExpression>
+    </parameter>
+    <parameter name="REPORT_SUBTITLE" forPrompting="false" class="java.lang.String">
+        <defaultValueExpression><![CDATA["Relação de todos os clientes cadastrados"]]></defaultValueExpression>
+    </parameter>
+    <parameter name="GERADO_POR" forPrompting="false" class="java.lang.String"/>
+
+    <field name="id" class="java.lang.Long"/>
+    <field name="nome" class="java.lang.String"/>
+    <field name="cpf" class="java.lang.String"/>
+
+    <!-- Variável booleana consumida pelo estilo zebrado de bikes-styles.jrtx -->
+    <variable name="ZEBRA" class="java.lang.Boolean">
+        <expression><![CDATA[$V{REPORT_COUNT} % 2 == 0]]></expression>
+    </variable>
+
+    <title height="72">
+        <element kind="image" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0002" x="0" y="0" width="150" height="50" usingCache="false" onErrorType="Blank">
+            <expression><![CDATA[$P{IMG_LOGO}]]></expression>
+        </element>
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0003" x="165" y="2" width="390" height="28" style="Title">
+            <expression><![CDATA[$P{REPORT_TITLE}]]></expression>
+        </element>
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0004" x="165" y="32" width="390" height="16" style="Subtitle">
+            <expression><![CDATA[$P{REPORT_SUBTITLE}]]></expression>
+        </element>
+        <element kind="line" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0005" x="0" y="60" width="555" height="2">
+            <pen lineWidth="2.0" lineColor="#1B5E20"/>
+        </element>
+    </title>
+
+    <pageHeader height="18">
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0006" x="0" y="0" width="555" height="16" style="Footer">
+            <expression><![CDATA["Gerado em " + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm"))
+                + ($P{GERADO_POR} == null ? "" : " por " + $P{GERADO_POR})]]></expression>
+        </element>
+    </pageHeader>
+
+    <columnHeader height="22">
+        <element kind="staticText" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0010" x="0" y="0" width="55" height="22" hTextAlign="Center" style="ColumnHeader">
+            <text><![CDATA[#]]></text>
+        </element>
+        <element kind="staticText" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0011" x="55" y="0" width="340" height="22" style="ColumnHeader">
+            <text><![CDATA[Nome completo]]></text>
+        </element>
+        <element kind="staticText" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0012" x="395" y="0" width="160" height="22" hTextAlign="Center" style="ColumnHeader">
+            <text><![CDATA[CPF]]></text>
+        </element>
+    </columnHeader>
+
+    <detail>
+        <band height="18">
+            <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0020" x="0" y="0" width="55" height="18" style="DetailCenter">
+                <expression><![CDATA[$F{id}]]></expression>
+            </element>
+            <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0021" x="55" y="0" width="340" height="18" textAdjust="StretchHeight" style="Detail">
+                <expression><![CDATA[$F{nome}]]></expression>
+            </element>
+            <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0022" x="395" y="0" width="160" height="18" style="DetailCenter">
+                <expression><![CDATA[$F{cpf} == null ? "-" : $F{cpf}.replaceFirst("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4")]]></expression>
+            </element>
+        </band>
+    </detail>
+
+    <pageFooter height="20">
+        <element kind="staticText" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0030" x="0" y="4" width="300" height="14" style="Footer">
+            <text><![CDATA[Bikes — Locadora de Bicicletas · IFC Campus Videira]]></text>
+        </element>
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0031" x="355" y="4" width="150" height="14" hTextAlign="Right" style="Footer">
+            <expression><![CDATA["Página " + $V{PAGE_NUMBER} + " de"]]></expression>
+        </element>
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0032" x="507" y="4" width="48" height="14" evaluationTime="Report" style="Footer">
+            <expression><![CDATA[" " + $V{PAGE_NUMBER}]]></expression>
+        </element>
+    </pageFooter>
+
+    <summary height="46">
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0040" x="0" y="8" width="555" height="30" style="NoData">
+            <printWhenExpression><![CDATA[$V{REPORT_COUNT} == 0]]></printWhenExpression>
+            <expression><![CDATA["Nenhum cliente cadastrado."]]></expression>
+        </element>
+        <element kind="textField" uuid="7c3e9d1a-5b2f-4e8c-8d1b-2a6f3e0b0041" x="0" y="4" width="555" height="20" style="Total">
+            <printWhenExpression><![CDATA[$V{REPORT_COUNT} > 0]]></printWhenExpression>
+            <expression><![CDATA["Total de clientes: " + $V{REPORT_COUNT}]]></expression>
+        </element>
+    </summary>
+</jasperReport>
