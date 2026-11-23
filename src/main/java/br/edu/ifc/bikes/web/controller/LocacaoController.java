@@ -14,7 +14,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -120,5 +122,25 @@ public class LocacaoController {
     public ResponseEntity<List<LocacaoRelatorioDTO>> getRelatorio() {
         List<LocacaoRelatorioDTO> relatorio = locacaoService.getRelatorio();
         return ResponseEntity.ok(relatorio);
+    }
+
+    @Operation(summary = "Relatório de locações e devoluções em PDF",
+            description = "Mesma relação do recurso /relatorio, gerada com JasperReports no formato PDF. Restrito ao administrador.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Relatório gerado com sucesso",
+                            content = @Content(mediaType = "application/pdf", schema = @Schema(type = "string", format = "binary"))),
+                    @ApiResponse(responseCode = "403", description = "Usuário não autenticado ou sem perfil admin",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                    @ApiResponse(responseCode = "500", description = "Falha ao gerar o relatório",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class)))
+            })
+    @GetMapping("/relatorio/pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> getRelatorioPdf() {
+        byte[] relatorio = locacaoService.getRelatorioPdf();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=locacoes-" + System.currentTimeMillis() + ".pdf")
+                .body(relatorio);
     }
 }

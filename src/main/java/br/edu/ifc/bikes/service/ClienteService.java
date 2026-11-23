@@ -25,9 +25,12 @@ import java.util.List;
 @Service
 public class ClienteService {
 
+    public static final String RELATORIO_JASPER = "clientes-bikes";
+
     private final ClienteRepository clienteRepository;
     private final ClienteMapper clienteMapper;
     private final UsuarioService usuarioService;
+    private final JasperService jasperService;
 
     public ClienteResponseDTO create(ClienteRequestDTO clienteRequestDTO) {
         Usuario usuario = usuarioAutenticado();
@@ -67,6 +70,11 @@ public class ClienteService {
         List<Cliente> clientes = clienteRepository.findAll();
         log.debug("Listagem de clientes: {} registro(s)", clientes.size());
         return clienteMapper.toResponse(clientes);
+    }
+
+    public byte[] getRelatorioPdf() {
+        return jasperService.generatePdf(RELATORIO_JASPER, "Relatório de Clientes",
+                "Relação de todos os clientes cadastrados", getAll());
     }
 
     @Transactional

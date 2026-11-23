@@ -30,11 +30,13 @@ public class LocacaoService {
 
     //tarifa cobrada por hora (ou fração) de utilização
     public static final BigDecimal VALOR_HORA = new BigDecimal("5.00");
+    public static final String RELATORIO_JASPER = "locacoes-bikes";
 
     private final LocacaoRepository locacaoRepository;
     private final LocacaoMapper locacaoMapper;
     private final ClienteService clienteService;
     private final BicicletaService bicicletaService;
+    private final JasperService jasperService;
 
     @Transactional
     public LocacaoResponseDTO create(LocacaoRequestDTO locacaoRequestDTO) {
@@ -105,6 +107,12 @@ public class LocacaoService {
         List<Locacao> locacoes = locacaoRepository.findAllByOrderByDataRetiradaDesc();
         log.debug("Relatório de locações: {} registro(s)", locacoes.size());
         return locacaoMapper.toRelatorio(locacoes);
+    }
+
+    @Transactional
+    public byte[] getRelatorioPdf() {
+        return jasperService.generatePdf(RELATORIO_JASPER, "Relatório de Locações e Devoluções",
+                "Relação de todas as locações, com cliente, bicicleta, datas, duração e status", getRelatorio());
     }
 
     //cobra por hora iniciada: qualquer fração de hora conta como uma hora cheia (mínimo de 1 hora)
