@@ -8,6 +8,7 @@ import br.edu.ifc.bikes.dto.LocacaoResponseDTO;
 import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.LocacaoInvalidaException;
+import br.edu.ifc.bikes.exception.RelatorioException;
 import br.edu.ifc.bikes.service.LocacaoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -30,6 +32,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -193,6 +197,29 @@ class LocacaoControllerTest {
                 .andExpect(jsonPath("$[0].duracaoMinutos").value(125))
                 .andExpect(jsonPath("$[0].duracao").value("2h 05min"))
                 .andExpect(jsonPath("$[0].status").value("FINALIZADA"));
+    }
+
+    @Test
+    void getRelatorioPdfRetornaPdfInline() throws Exception {
+        byte[] pdf = "%PDF-1.7 teste".getBytes();
+        when(locacaoService.getRelatorioPdf()).thenReturn(pdf);
+
+        mockMvc.perform(get(URL + "/relatorio/pdf"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=locacoes-")))
+                .andExpect(content().bytes(pdf));
+    }
+
+    @Test
+    void getRelatorioPdfComFalhaRetorna500() throws Exception {
+        when(locacaoService.getRelatorioPdf()).thenThrow(
+                new RelatorioException("Erro ao gerar o relatório 'locacoes-bikes'", new RuntimeException()));
+
+        mockMvc.perform(get(URL + "/relatorio/pdf"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.message").value("Erro ao gerar o relatório 'locacoes-bikes'"));
     }
 
     private static LocacaoResponseDTO response(String status, BigDecimal valor) {

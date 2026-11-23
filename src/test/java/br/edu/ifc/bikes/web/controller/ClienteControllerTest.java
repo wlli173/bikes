@@ -4,6 +4,7 @@ import br.edu.ifc.bikes.dto.ClienteRequestDTO;
 import br.edu.ifc.bikes.dto.ClienteResponseDTO;
 import br.edu.ifc.bikes.exception.ClienteUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
+import br.edu.ifc.bikes.exception.RelatorioException;
 import br.edu.ifc.bikes.service.ClienteService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,12 +16,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -112,6 +116,29 @@ class ClienteControllerTest {
         mockMvc.perform(get(URL + "/detalhes"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Usuário autenticado não possui cadastro de cliente"));
+    }
+
+    @Test
+    void gerarRelatorioRetornaPdfInline() throws Exception {
+        byte[] pdf = "%PDF-1.7 teste".getBytes();
+        when(clienteService.getRelatorioPdf()).thenReturn(pdf);
+
+        mockMvc.perform(get(URL + "/relatorio"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=clientes-")))
+                .andExpect(content().bytes(pdf));
+    }
+
+    @Test
+    void gerarRelatorioComFalhaRetorna500() throws Exception {
+        when(clienteService.getRelatorioPdf()).thenThrow(
+                new RelatorioException("Erro ao gerar o relatório 'clientes-bikes'", new RuntimeException()));
+
+        mockMvc.perform(get(URL + "/relatorio"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.message").value("Erro ao gerar o relatório 'clientes-bikes'"));
     }
 
     @Test

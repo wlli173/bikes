@@ -2,6 +2,7 @@ package br.edu.ifc.bikes.web.exception;
 
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
+import br.edu.ifc.bikes.exception.RelatorioException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import br.edu.ifc.bikes.web.controller.UsuarioController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -77,6 +78,20 @@ class ApiExceptionHandlerTest {
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals(404, response.getBody().getStatus());
+        assertEquals("GET", response.getBody().getMethod());
+        assertEquals(ex.getMessage(), response.getBody().getMessage());
+    }
+
+    @Test
+    void falhaNoRelatorioRetorna500() {
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/api/v1/locacoes/relatorio/pdf");
+        RelatorioException ex = new RelatorioException("Erro ao gerar o relatório 'locacoes-bikes'", new RuntimeException("boom"));
+
+        ResponseEntity<ErrorMessage> response = handler.relatorioException(ex, request);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(500, response.getBody().getStatus());
         assertEquals("GET", response.getBody().getMethod());
         assertEquals(ex.getMessage(), response.getBody().getMessage());
     }

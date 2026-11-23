@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +43,9 @@ class ClienteServiceTest {
 
     @Mock
     private UsuarioService usuarioService;
+
+    @Mock
+    private JasperService jasperService;
 
     @InjectMocks
     private ClienteService clienteService;
@@ -169,6 +175,18 @@ class ClienteServiceTest {
         when(clienteMapper.toResponse(clientes)).thenReturn(resposta);
 
         assertEquals(resposta, clienteService.getAll());
+    }
+
+    @Test
+    void getRelatorioPdfDelegaAoJasperComTodosOsClientes() {
+        List<Cliente> clientes = List.of(new Cliente());
+        List<ClienteResponseDTO> resposta = List.of(new ClienteResponseDTO(1L, "Ana Silva", "12345678901"));
+        byte[] pdf = "%PDF-".getBytes();
+        when(clienteRepository.findAll()).thenReturn(clientes);
+        when(clienteMapper.toResponse(clientes)).thenReturn(resposta);
+        when(jasperService.generatePdf(eq(ClienteService.RELATORIO_JASPER), anyString(), anyString(), eq(resposta))).thenReturn(pdf);
+
+        assertSame(pdf, clienteService.getRelatorioPdf());
     }
 
     @Test

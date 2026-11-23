@@ -14,15 +14,20 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -267,6 +272,29 @@ class LocacaoControllerIT {
                         .content(jsonLocacao("INEXISTENTE")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Bicicleta com código 'INEXISTENTE' não encontrada"));
+    }
+
+    @Test
+    void adminGeraRelatorioEmPdfEClienteNaoTemAcesso() throws Exception {
+        String tokenAdmin = tokenAdmin();
+        String tokenCliente = tokenCliente();
+        String codigo = codigoUnico();
+        criarBicicleta(tokenAdmin, codigo, "DISPONIVEL");
+        criarLocacao(tokenCliente, codigo);
+
+        byte[] pdf = mockMvc.perform(get(URL + "/relatorio/pdf")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=locacoes-")))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        assertTrue(pdf.length > 1000);
+        assertEquals("%PDF-", new String(pdf, 0, 5, StandardCharsets.US_ASCII));
+
+        mockMvc.perform(get(URL + "/relatorio/pdf")
+                        .header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isForbidden());
     }
 
     private String criarLocacao(String token, String codigo) throws Exception {

@@ -11,12 +11,17 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -187,6 +192,27 @@ class ClienteControllerIT {
                         .header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Cliente com id=999999 não encontrado"));
+    }
+
+    @Test
+    void adminGeraRelatorioDeClientesEmPdfEClienteNaoTemAcesso() throws Exception {
+        String tokenCliente = tokenDe(emailUnico());
+        criarCliente(tokenCliente, "Ana Silva", cpfUnico());
+        String tokenAdmin = tokenAdmin();
+
+        byte[] pdf = mockMvc.perform(get(URL + "/relatorio")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=clientes-")))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        assertTrue(pdf.length > 1000);
+        assertEquals("%PDF-", new String(pdf, 0, 5, StandardCharsets.US_ASCII));
+
+        mockMvc.perform(get(URL + "/relatorio")
+                        .header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isForbidden());
     }
 
     private String criarCliente(String token, String nome, String cpf) throws Exception {

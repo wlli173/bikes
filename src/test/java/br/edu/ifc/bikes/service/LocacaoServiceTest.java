@@ -28,9 +28,12 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +54,9 @@ class LocacaoServiceTest {
 
     @Mock
     private BicicletaService bicicletaService;
+
+    @Mock
+    private JasperService jasperService;
 
     @InjectMocks
     private LocacaoService locacaoService;
@@ -245,6 +251,19 @@ class LocacaoServiceTest {
         when(locacaoMapper.toRelatorio(locacoes)).thenReturn(relatorio);
 
         assertEquals(relatorio, locacaoService.getRelatorio());
+    }
+
+    @Test
+    void getRelatorioPdfDelegaAoJasperComOsDadosDoRelatorio() {
+        List<Locacao> locacoes = List.of(new Locacao());
+        List<LocacaoRelatorioDTO> relatorio = List.of(new LocacaoRelatorioDTO(7L, "Ana Silva", "BK01",
+                LocalDateTime.now(), null, null, "Em andamento", null, "ATIVA"));
+        byte[] pdf = "%PDF-".getBytes();
+        when(locacaoRepository.findAllByOrderByDataRetiradaDesc()).thenReturn(locacoes);
+        when(locacaoMapper.toRelatorio(locacoes)).thenReturn(relatorio);
+        when(jasperService.generatePdf(eq(LocacaoService.RELATORIO_JASPER), anyString(), anyString(), eq(relatorio))).thenReturn(pdf);
+
+        assertSame(pdf, locacaoService.getRelatorioPdf());
     }
 
     @Test
