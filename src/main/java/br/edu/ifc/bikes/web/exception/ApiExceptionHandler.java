@@ -6,6 +6,7 @@ import br.edu.ifc.bikes.exception.ClienteUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.exception.LocacaoInvalidaException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
+import br.edu.ifc.bikes.exception.RelatorioException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -105,6 +106,18 @@ public class ApiExceptionHandler {
                 .status(HttpStatus.NOT_FOUND)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessage(request, HttpStatus.NOT_FOUND, ex.getMessage()));
+    }
+
+    @ExceptionHandler(RelatorioException.class)
+    public ResponseEntity<ErrorMessage> relatorioException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.error("Falha ao gerar relatório em {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordInvalidException.class)
