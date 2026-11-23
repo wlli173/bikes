@@ -129,6 +129,38 @@ class ClienteServiceTest {
     }
 
     @Test
+    void getDetalhesDevolveClienteDoUsuarioAutenticado() {
+        Usuario usuario = usuario(8L);
+        autenticar(usuario);
+        Cliente cliente = new Cliente();
+        cliente.setId(4L);
+        cliente.setUsuario(usuario);
+        ClienteResponseDTO response = new ClienteResponseDTO(4L, "Ana Silva", "12345678901");
+        when(usuarioService.buscarPorNome("ana@bikes.com")).thenReturn(usuario);
+        when(clienteRepository.findByUsuarioId(8L)).thenReturn(Optional.of(cliente));
+        when(clienteMapper.toResponse(cliente)).thenReturn(response);
+
+        assertEquals(response, clienteService.getDetalhes());
+    }
+
+    @Test
+    void getDetalhesSemCadastroDeClienteLancaEntityNotFound() {
+        Usuario usuario = usuario(8L);
+        autenticar(usuario);
+        when(usuarioService.buscarPorNome("ana@bikes.com")).thenReturn(usuario);
+        when(clienteRepository.findByUsuarioId(8L)).thenReturn(Optional.empty());
+
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class, () -> clienteService.getDetalhes());
+
+        assertEquals("Usuário autenticado não possui cadastro de cliente", ex.getMessage());
+    }
+
+    @Test
+    void buscarClienteAutenticadoSemAutenticacaoLancaAcessoNegado() {
+        assertThrows(AccessDeniedException.class, () -> clienteService.buscarClienteAutenticado());
+    }
+
+    @Test
     void getAllMapeiaClientesDoRepositorio() {
         Cliente cliente = new Cliente();
         List<Cliente> clientes = List.of(cliente);

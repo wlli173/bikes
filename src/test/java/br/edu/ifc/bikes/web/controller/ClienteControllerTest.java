@@ -96,6 +96,25 @@ class ClienteControllerTest {
     }
 
     @Test
+    void getDetalhesRetorna200() throws Exception {
+        when(clienteService.getDetalhes()).thenReturn(new ClienteResponseDTO(4L, "Ana Silva", "12345678901"));
+
+        mockMvc.perform(get(URL + "/detalhes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(4))
+                .andExpect(jsonPath("$.nome").value("Ana Silva"));
+    }
+
+    @Test
+    void getDetalhesSemClienteRetorna404() throws Exception {
+        when(clienteService.getDetalhes()).thenThrow(new EntityNotFoundException("Usuário autenticado não possui cadastro de cliente"));
+
+        mockMvc.perform(get(URL + "/detalhes"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Usuário autenticado não possui cadastro de cliente"));
+    }
+
+    @Test
     void getAllRetorna200() throws Exception {
         when(clienteService.getAll()).thenReturn(List.of(new ClienteResponseDTO(1L, "Ana Silva", "12345678901")));
 

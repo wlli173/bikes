@@ -133,6 +133,41 @@ class ClienteControllerIT {
     }
 
     @Test
+    void adminNaoSeCadastraComoCliente() throws Exception {
+        String tokenAdmin = tokenAdmin();
+
+        mockMvc.perform(post(URL)
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Ana Silva", cpfUnico())))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get(URL + "/detalhes")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void clienteRecuperaOsPropriosDadosEmDetalhes() throws Exception {
+        String token = tokenDe(emailUnico());
+
+        mockMvc.perform(get(URL + "/detalhes")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Usuário autenticado não possui cadastro de cliente"));
+
+        String cpf = cpfUnico();
+        String id = criarCliente(token, "Ana Silva", cpf);
+
+        mockMvc.perform(get(URL + "/detalhes")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(Integer.parseInt(id)))
+                .andExpect(jsonPath("$.nome").value("Ana Silva"))
+                .andExpect(jsonPath("$.cpf").value(cpf));
+    }
+
+    @Test
     void adminConsultaTodosOsClientes() throws Exception {
         String tokenCliente = tokenDe(emailUnico());
         String id = criarCliente(tokenCliente, "Ana Silva", cpfUnico());

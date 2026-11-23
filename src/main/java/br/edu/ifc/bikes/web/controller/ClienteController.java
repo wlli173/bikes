@@ -27,11 +27,11 @@ public class ClienteController {
 
     private final ClienteService clienteService;
 
-    @Operation(summary = "Criar um novo cliente", description = "Recurso para criar um cliente associado ao usuário autenticado",
+    @Operation(summary = "Criar um novo cliente", description = "Recurso para criar um cliente associado ao usuário autenticado. Restrito ao perfil cliente.",
             responses = {
                     @ApiResponse(responseCode = "201", description = "Recurso criado com sucesso",
                             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ClienteResponseDTO.class))),
-                    @ApiResponse(responseCode = "403", description = "Usuário não autenticado",
+                    @ApiResponse(responseCode = "403", description = "Usuário não autenticado ou sem perfil cliente",
                             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
                     @ApiResponse(responseCode = "409", description = "CPF já cadastrado ou usuário já possui um cliente",
                             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
@@ -39,10 +39,26 @@ public class ClienteController {
                             content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class)))
             })
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('CLIENTE')")
     public ResponseEntity<ClienteResponseDTO> create(@Valid @RequestBody ClienteRequestDTO cliente) {
         ClienteResponseDTO clienteCriado = clienteService.create(cliente);
         return ResponseEntity.status(HttpStatus.CREATED).body(clienteCriado);
+    }
+
+    @Operation(summary = "Recuperar os dados do cliente autenticado", description = "O cliente recupera os próprios dados a partir do token. Restrito ao perfil cliente.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Recurso recuperado com sucesso",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ClienteResponseDTO.class))),
+                    @ApiResponse(responseCode = "403", description = "Usuário não autenticado ou sem perfil cliente",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                    @ApiResponse(responseCode = "404", description = "Usuário ainda não possui cadastro de cliente",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class)))
+            })
+    @GetMapping("/detalhes")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<ClienteResponseDTO> getDetalhes() {
+        ClienteResponseDTO cliente = clienteService.getDetalhes();
+        return ResponseEntity.ok(cliente);
     }
 
     @Operation(summary = "Recuperar um cliente pelo id", description = "O cliente consulta apenas os seus dados. O admin consulta qualquer cliente.",
