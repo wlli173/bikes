@@ -33,11 +33,34 @@ class BicicletaRepositoryIT {
         assertThrows(DataIntegrityViolationException.class, () -> bicicletaRepository.saveAndFlush(nova("BK01")));
     }
 
+    @Test
+    void findFirstByStatusDevolveADisponivelDeMenorId() {
+        bicicletaRepository.saveAndFlush(nova("BK01", Bicicleta.Status.ALUGADA));
+        Bicicleta disponivel = bicicletaRepository.saveAndFlush(nova("BK02", Bicicleta.Status.DISPONIVEL));
+        bicicletaRepository.saveAndFlush(nova("BK03", Bicicleta.Status.DISPONIVEL));
+
+        assertEquals(disponivel.getId(),
+                bicicletaRepository.findFirstByStatusOrderByIdAsc(Bicicleta.Status.DISPONIVEL).orElseThrow().getId());
+        assertTrue(bicicletaRepository.findFirstByStatusOrderByIdAsc(Bicicleta.Status.MANUTENCAO).isEmpty());
+    }
+
+    @Test
+    void findByCodigoParaLocacaoLocalizaPeloCodigo() {
+        Bicicleta salva = bicicletaRepository.saveAndFlush(nova("BK01"));
+
+        assertEquals(salva.getId(), bicicletaRepository.findByCodigoParaLocacao("BK01").orElseThrow().getId());
+        assertTrue(bicicletaRepository.findByCodigoParaLocacao("BK99").isEmpty());
+    }
+
     private static Bicicleta nova(String codigo) {
+        return nova(codigo, Bicicleta.Status.DISPONIVEL);
+    }
+
+    private static Bicicleta nova(String codigo, Bicicleta.Status status) {
         Bicicleta bicicleta = new Bicicleta();
         bicicleta.setCodigo(codigo);
         bicicleta.setModelo("Caloi Elite");
-        bicicleta.setStatus(Bicicleta.Status.DISPONIVEL);
+        bicicleta.setStatus(status);
         return bicicleta;
     }
 }

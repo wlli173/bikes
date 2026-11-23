@@ -16,6 +16,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -141,6 +142,71 @@ class BicicletaControllerIT {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void adminAlteraStatusParaManutencaoEDeVoltaParaDisponivel() throws Exception {
+        String token = tokenAdmin(emailUnico());
+        String codigo = codigoUnico();
+        criar(token, codigo, "DISPONIVEL");
+
+        mockMvc.perform(patch(URL + "/" + codigo + "/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"MANUTENCAO\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.codigo").value(codigo))
+                .andExpect(jsonPath("$.status").value("MANUTENCAO"));
+
+        assertEquals(Bicicleta.Status.MANUTENCAO, bicicletaRepository.findByCodigo(codigo).orElseThrow().getStatus());
+
+        mockMvc.perform(patch(URL + "/" + codigo + "/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISPONIVEL\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DISPONIVEL"));
+    }
+
+    @Test
+    void alterarStatusDeBicicletaAlugadaRetorna409() throws Exception {
+        String token = tokenAdmin(emailUnico());
+        String codigo = codigoUnico();
+        criar(token, codigo, "ALUGADA");
+
+        mockMvc.perform(patch(URL + "/" + codigo + "/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISPONIVEL\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Bicicleta com código '" + codigo + "' está alugada e só será liberada na devolução"));
+    }
+
+    @Test
+    void alterarStatusInvalidoOuSemPermissaoFalha() throws Exception {
+        String tokenAdmin = tokenAdmin(emailUnico());
+        String tokenCliente = tokenDe(emailUnico());
+        String codigo = codigoUnico();
+        criar(tokenAdmin, codigo, "DISPONIVEL");
+
+        mockMvc.perform(patch(URL + "/" + codigo + "/status")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ALUGADA\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors.status").exists());
+
+        mockMvc.perform(patch(URL + "/" + codigo + "/status")
+                        .header("Authorization", "Bearer " + tokenCliente)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"MANUTENCAO\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch(URL + "/INEXISTENTE/status")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"MANUTENCAO\"}"))
+                .andExpect(status().isNotFound());
     }
 
     private void criar(String token, String codigo, String status) throws Exception {

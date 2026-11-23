@@ -4,6 +4,7 @@ import br.edu.ifc.bikes.dto.BicicletaRequestDTO;
 import br.edu.ifc.bikes.dto.BicicletaResponseDTO;
 import br.edu.ifc.bikes.dto.mapper.BicicletaMapper;
 import br.edu.ifc.bikes.entity.Bicicleta;
+import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.repository.BicicletaRepository;
@@ -55,5 +56,51 @@ public class BicicletaService {
         List<Bicicleta> bicicletas = bicicletaRepository.findAll();
         log.debug("Listagem de bicicletas: {} registro(s)", bicicletas.size());
         return bicicletaMapper.toResponse(bicicletas);
+    }
+
+    @Transactional
+    public BicicletaResponseDTO updateStatus(String codigo, String status) {
+        Bicicleta bicicleta = buscarPorCodigo(codigo);
+        if (bicicleta.getStatus() == Bicicleta.Status.ALUGADA) {
+            log.warn("Tentativa de alterar status de bicicleta alugada: codigo={}", codigo);
+            throw new BicicletaIndisponivelException(String.format("Bicicleta com código '%s' está alugada e só será liberada na devolução", codigo));
+        }
+        return bicicletaMapper.toResponse(alterarStatus(bicicleta, Bicicleta.Status.valueOf(status)));
+    }
+
+    @Transactional
+    public Bicicleta alterarStatus(Bicicleta bicicleta, Bicicleta.Status status) {
+        bicicleta.setStatus(status);
+        Bicicleta salva = bicicletaRepository.save(bicicleta);
+        log.info("Status da bicicleta alterado: codigo={} status={}", salva.getCodigo(), status);
+        return salva;
+    }
+
+    @Transactional
+    public Bicicleta buscarPorCodigo(String codigo) {
+        return bicicletaRepository.findByCodigo(codigo).orElseThrow(
+                () -> new EntityNotFoundException(String.format("Bicicleta com código '%s' não encontrada", codigo))
+        );
+    }
+
+    //busca para locação: bloqueia a linha e garante que a bicicleta esteja disponível
+    @Transactional
+    public Bicicleta buscarDisponivelParaLocacao(String codigo) {
+        if (codigo == null || codigo.isBlank()) {
+            return bicicletaRepository.findFirstByStatusOrderByIdAsc(Bicicleta.Status.DISPONIVEL).orElseThrow(
+                    () -> {
+                        log.warn("Solicitação de locação sem bicicletas disponíveis");
+                        return new EntityNotFoundException("Nenhuma bicicleta disponível para locação");
+                    }
+            );
+        }
+        Bicicleta bicicleta = bicicletaRepository.findByCodigoParaLocacao(codigo).orElseThrow(
+                () -> new EntityNotFoundException(String.format("Bicicleta com código '%s' não encontrada", codigo))
+        );
+        if (bicicleta.getStatus() != Bicicleta.Status.DISPONIVEL) {
+            log.warn("Bicicleta indisponível para locação: codigo={} status={}", codigo, bicicleta.getStatus());
+            throw new BicicletaIndisponivelException(String.format("Bicicleta com código '%s' não está disponível (status %s)", codigo, bicicleta.getStatus()));
+        }
+        return bicicleta;
     }
 }

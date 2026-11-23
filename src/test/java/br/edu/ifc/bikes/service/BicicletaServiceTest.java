@@ -4,6 +4,7 @@ import br.edu.ifc.bikes.dto.BicicletaRequestDTO;
 import br.edu.ifc.bikes.dto.BicicletaResponseDTO;
 import br.edu.ifc.bikes.dto.mapper.BicicletaMapper;
 import br.edu.ifc.bikes.entity.Bicicleta;
+import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.repository.BicicletaRepository;
@@ -105,5 +106,91 @@ class BicicletaServiceTest {
         when(bicicletaMapper.toResponse(vazia)).thenReturn(List.of());
 
         assertTrue(bicicletaService.getAll().isEmpty());
+    }
+
+    @Test
+    void updateStatusColocaBicicletaEmManutencao() {
+        Bicicleta bicicleta = nova("BK01", Bicicleta.Status.DISPONIVEL);
+        BicicletaResponseDTO response = new BicicletaResponseDTO(1L, "BK01", "Caloi Elite", "MANUTENCAO");
+        when(bicicletaRepository.findByCodigo("BK01")).thenReturn(Optional.of(bicicleta));
+        when(bicicletaRepository.save(bicicleta)).thenReturn(bicicleta);
+        when(bicicletaMapper.toResponse(bicicleta)).thenReturn(response);
+
+        assertEquals(response, bicicletaService.updateStatus("BK01", "MANUTENCAO"));
+        assertEquals(Bicicleta.Status.MANUTENCAO, bicicleta.getStatus());
+    }
+
+    @Test
+    void updateStatusDeBicicletaAlugadaLancaConflito() {
+        when(bicicletaRepository.findByCodigo("BK01")).thenReturn(Optional.of(nova("BK01", Bicicleta.Status.ALUGADA)));
+
+        BicicletaIndisponivelException ex = assertThrows(BicicletaIndisponivelException.class,
+                () -> bicicletaService.updateStatus("BK01", "DISPONIVEL"));
+
+        assertEquals("Bicicleta com código 'BK01' está alugada e só será liberada na devolução", ex.getMessage());
+        verify(bicicletaRepository, never()).save(any());
+    }
+
+    @Test
+    void updateStatusDeBicicletaInexistenteLancaEntityNotFound() {
+        when(bicicletaRepository.findByCodigo("BK99")).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> bicicletaService.updateStatus("BK99", "MANUTENCAO"));
+    }
+
+    @Test
+    void buscarDisponivelSemCodigoEscolhePrimeiraDisponivel() {
+        Bicicleta disponivel = nova("BK02", Bicicleta.Status.DISPONIVEL);
+        when(bicicletaRepository.findFirstByStatusOrderByIdAsc(Bicicleta.Status.DISPONIVEL)).thenReturn(Optional.of(disponivel));
+
+        assertEquals(disponivel, bicicletaService.buscarDisponivelParaLocacao(null));
+        assertEquals(disponivel, bicicletaService.buscarDisponivelParaLocacao(" "));
+    }
+
+    @Test
+    void buscarDisponivelSemNenhumaDisponivelLancaEntityNotFound() {
+        when(bicicletaRepository.findFirstByStatusOrderByIdAsc(Bicicleta.Status.DISPONIVEL)).thenReturn(Optional.empty());
+
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class,
+                () -> bicicletaService.buscarDisponivelParaLocacao(null));
+
+        assertEquals("Nenhuma bicicleta disponível para locação", ex.getMessage());
+    }
+
+    @Test
+    void buscarDisponivelPorCodigoDevolveBicicletaDisponivel() {
+        Bicicleta disponivel = nova("BK01", Bicicleta.Status.DISPONIVEL);
+        when(bicicletaRepository.findByCodigoParaLocacao("BK01")).thenReturn(Optional.of(disponivel));
+
+        assertEquals(disponivel, bicicletaService.buscarDisponivelParaLocacao("BK01"));
+    }
+
+    @Test
+    void buscarDisponivelPorCodigoEmManutencaoLancaConflito() {
+        when(bicicletaRepository.findByCodigoParaLocacao("BK01")).thenReturn(Optional.of(nova("BK01", Bicicleta.Status.MANUTENCAO)));
+
+        BicicletaIndisponivelException ex = assertThrows(BicicletaIndisponivelException.class,
+                () -> bicicletaService.buscarDisponivelParaLocacao("BK01"));
+
+        assertEquals("Bicicleta com código 'BK01' não está disponível (status MANUTENCAO)", ex.getMessage());
+    }
+
+    @Test
+    void buscarDisponivelPorCodigoInexistenteLancaEntityNotFound() {
+        when(bicicletaRepository.findByCodigoParaLocacao("BK99")).thenReturn(Optional.empty());
+
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class,
+                () -> bicicletaService.buscarDisponivelParaLocacao("BK99"));
+
+        assertEquals("Bicicleta com código 'BK99' não encontrada", ex.getMessage());
+    }
+
+    private static Bicicleta nova(String codigo, Bicicleta.Status status) {
+        Bicicleta bicicleta = new Bicicleta();
+        bicicleta.setId(1L);
+        bicicleta.setCodigo(codigo);
+        bicicleta.setModelo("Caloi Elite");
+        bicicleta.setStatus(status);
+        return bicicleta;
     }
 }

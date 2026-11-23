@@ -1,8 +1,10 @@
 package br.edu.ifc.bikes.web.exception;
 
+import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.ClienteUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
+import br.edu.ifc.bikes.exception.LocacaoInvalidaException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -63,6 +65,30 @@ public class ApiExceptionHandler {
             HttpServletRequest request) {
 
         log.warn("Conflito de cliente único em {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
+    @ExceptionHandler(BicicletaIndisponivelException.class)
+    public ResponseEntity<ErrorMessage> bicicletaIndisponivelException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.warn("Bicicleta indisponível em {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
+    @ExceptionHandler(LocacaoInvalidaException.class)
+    public ResponseEntity<ErrorMessage> locacaoInvalidaException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.warn("Locação inválida em {} {}", request.getMethod(), request.getRequestURI());
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .contentType(MediaType.APPLICATION_JSON)
