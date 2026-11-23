@@ -146,6 +146,7 @@ docker compose --profile loadtest down -v --remove-orphans
 | `GET` | `/api/v1/clientes/detalhes` | Cliente recupera os próprios dados. Perfil `CLIENTE` | `200`, `403`, `404` |
 | `GET` | `/api/v1/clientes/{id}` | Busca por id. `ADMIN` consulta qualquer um; `CLIENTE` só o próprio | `200`, `403`, `404` |
 | `GET` | `/api/v1/clientes` | Lista todos os clientes. Perfil `ADMIN` | `200`, `403` |
+| `GET` | `/api/v1/clientes/relatorio` | Relatório de clientes em **PDF** (JasperReports). Perfil `ADMIN` | `200`, `403`, `500` |
 | `POST` | `/api/v1/bicicletas` | Cadastra bicicleta (`codigo` único, `modelo`, `status`). Perfil `ADMIN` | `201`, `403`, `409`, `422` |
 | `GET` | `/api/v1/bicicletas/{codigo}` | Localiza a bicicleta pelo código. Perfil `ADMIN` | `200`, `403`, `404` |
 | `GET` | `/api/v1/bicicletas` | Lista todas as bicicletas. Perfil `ADMIN` | `200`, `403` |
@@ -154,7 +155,8 @@ docker compose --profile loadtest down -v --remove-orphans
 | `PATCH` | `/api/v1/locacoes/{id}/devolucao` | Registra a devolução, calcula o valor (R$ 5,00 por hora iniciada) e libera a bicicleta; `{"problema":true}` a envia para manutenção. `ADMIN` ou dono da locação | `200`, `403`, `404`, `409` |
 | `GET` | `/api/v1/locacoes/{id}` | Busca por id. `ADMIN` ou dono da locação | `200`, `403`, `404` |
 | `GET` | `/api/v1/locacoes` | Lista todas as locações. Perfil `ADMIN` | `200`, `403` |
-| `GET` | `/api/v1/locacoes/relatorio` | Relatório: cliente, bicicleta, retirada/devolução, duração e status de cada locação. Perfil `ADMIN` | `200`, `403` |
+| `GET` | `/api/v1/locacoes/relatorio` | Relatório (JSON): cliente, bicicleta, retirada/devolução, duração e status de cada locação. Perfil `ADMIN` | `200`, `403` |
+| `GET` | `/api/v1/locacoes/relatorio/pdf` | O mesmo relatório em **PDF** (JasperReports), com totais de locações, tempo de uso e valor faturado. Perfil `ADMIN` | `200`, `403`, `500` |
 | `GET` | `/api/v1/demo/log` | Emite logs DEBUG/INFO/WARN/ERROR (evidência do Graylog) | `200` |
 | `GET` | `/api/v1/demo/log/error` | Simula erro 500 | `500` |
 
@@ -195,11 +197,28 @@ curl -X POST http://localhost:8080/api/v1/locacoes -H "Authorization: Bearer $TO
 curl -X PATCH http://localhost:8080/api/v1/locacoes/1/devolucao -H "Authorization: Bearer $TOKEN_CLIENTE" \
   -H "Content-Type: application/json" -d '{"problema":true,"descricaoProblema":"Pneu furado"}'
 
-# 5. relatório de locações e devoluções (admin)
+# 5. relatório de locações e devoluções (admin) — JSON
 curl http://localhost:8080/api/v1/locacoes/relatorio -H "Authorization: Bearer $TOKEN_ADMIN"
+
+# 6. o mesmo relatório em PDF (JasperReports)
+curl -o locacoes.pdf http://localhost:8080/api/v1/locacoes/relatorio/pdf -H "Authorization: Bearer $TOKEN_ADMIN"
 ```
 
 ![Swagger UI](docs/evidencias/swagger-ui.png)
+
+### Relatórios em PDF (JasperReports)
+
+Os relatórios são gerados com **JasperReports 7** (`jasperreports`, `jasperreports-pdf`, `jasperreports-jdt` para compilar os `.jrxml` em tempo de execução e `jasperreports-fonts` para a fonte DejaVu Sans embutida no PDF).
+
+| Arquivo | Papel |
+|---------|-------|
+| [`reports/styles/bikes-styles.jrtx`](src/main/resources/reports/styles/bikes-styles.jrtx) | **Arquivo de estilização** compartilhado: fonte base, título, cabeçalho de colunas, linhas zebradas, destaque de status, totais e rodapé. Injetado nos relatórios pelo parâmetro `REPORT_STYLES` |
+| [`reports/locacoes-bikes.jrxml`](src/main/resources/reports/locacoes-bikes.jrxml) | Relatório de locações e devoluções (paisagem) com totais de locações, tempo de utilização e valor faturado |
+| [`reports/clientes-bikes.jrxml`](src/main/resources/reports/clientes-bikes.jrxml) | Relatório de clientes cadastrados (retrato), com CPF formatado |
+| [`reports/images/bikes-logo.png`](src/main/resources/reports/images/bikes-logo.png) | Logotipo exibido no cabeçalho (parâmetro `IMG_LOGO`) |
+| [`JasperService`](src/main/java/br/edu/ifc/bikes/service/JasperService.java) | Carrega o template de estilos e o logo, compila e cacheia os `.jrxml`, converte os DTOs (`record`) em fonte de dados e exporta o PDF. Falhas viram `RelatorioException` (`500`) |
+
+A imagem de runtime instala `fontconfig` e `ttf-dejavu`, necessários para o AWT medir textos na JRE Alpine.
 
 ---
 
@@ -347,8 +366,8 @@ A esteira roda `./mvnw verify`, que executa as duas suítes:
 
 | Suíte | Plugin | O que valida |
 |-------|--------|--------------|
-| **Unitários** (`*Test.java`) | Surefire | Serviços (`Usuario`, `Cliente`, `Bicicleta`, `Locacao`), controllers (`@WebMvcTest` + Mockito), `ApiExceptionHandler`, mappers MapStruct, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
-| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2 e JWT: usuários, clientes (`/detalhes`, permissões por perfil), bicicletas (código único, troca de status), locações ponta a ponta (cadastro → locação → devolução com cálculo do valor → relatório), repositórios, logs de demonstração, health e Prometheus |
+| **Unitários** (`*Test.java`) | Surefire | Serviços (`Usuario`, `Cliente`, `Bicicleta`, `Locacao`, `Jasper`), controllers (`@WebMvcTest` + Mockito, incluindo os endpoints PDF), `ApiExceptionHandler`, mappers MapStruct, `UsuarioSource` e `DemoLogController`, com repositório e serviço simulados |
+| **Integração** (`*IT.java`) | Failsafe | Fluxo real com H2 e JWT: usuários, clientes (`/detalhes`, permissões por perfil), bicicletas (código único, troca de status), locações ponta a ponta (cadastro → locação → devolução com cálculo do valor → relatório JSON e PDF), geração real dos PDFs pelo `JasperService`, repositórios, logs de demonstração, health e Prometheus |
 
 Rodar localmente sem instalar Java:
 
@@ -377,6 +396,7 @@ docker run --rm -v "$PWD":/ws -w /ws maven:3.9.16-eclipse-temurin-25-alpine mvn 
 └── src/
     ├── main/java/br/edu/ifc/bikes/     # config, dto, entity, repository, service, web
     ├── main/resources/                 # application.properties, logback-spring.xml (GELF)
+    │   └── reports/                    # JasperReports: styles/bikes-styles.jrtx, *.jrxml, images/
     └── test/                           # testes + H2 + logback-test.xml
 ```
 
