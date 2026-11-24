@@ -2,6 +2,7 @@ package br.edu.ifc.bikes.web.controller;
 
 import br.edu.ifc.bikes.dto.BicicletaRequestDTO;
 import br.edu.ifc.bikes.dto.BicicletaResponseDTO;
+import br.edu.ifc.bikes.dto.BicicletaStatusDTO;
 import br.edu.ifc.bikes.service.BicicletaService;
 import br.edu.ifc.bikes.web.exception.ErrorMessage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -78,5 +79,26 @@ public class BicicletaController {
     public ResponseEntity<List<BicicletaResponseDTO>> getAll() {
         List<BicicletaResponseDTO> bicicletas = bicicletaService.getAll();
         return ResponseEntity.ok(bicicletas);
+    }
+
+    @Operation(summary = "Alterar o status de uma bicicleta", description = "Coloca a bicicleta em manutenção ou a libera (DISPONIVEL). " +
+            "Uma bicicleta alugada só é liberada pela devolução. Restrito ao administrador.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Status atualizado com sucesso",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = BicicletaResponseDTO.class))),
+                    @ApiResponse(responseCode = "403", description = "Usuário não autenticado ou sem perfil admin",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                    @ApiResponse(responseCode = "404", description = "Recurso não encontrado",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                    @ApiResponse(responseCode = "409", description = "Bicicleta alugada não pode ter o status alterado",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class))),
+                    @ApiResponse(responseCode = "422", description = "Recurso não processado por dados de entrada inválidos",
+                            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorMessage.class)))
+            })
+    @PatchMapping("/{codigo}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BicicletaResponseDTO> updateStatus(@PathVariable String codigo, @Valid @RequestBody BicicletaStatusDTO dto) {
+        BicicletaResponseDTO bicicleta = bicicletaService.updateStatus(codigo, dto.status());
+        return ResponseEntity.ok(bicicleta);
     }
 }

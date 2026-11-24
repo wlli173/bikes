@@ -2,6 +2,7 @@ package br.edu.ifc.bikes.web.controller;
 
 import br.edu.ifc.bikes.dto.BicicletaRequestDTO;
 import br.edu.ifc.bikes.dto.BicicletaResponseDTO;
+import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
 import br.edu.ifc.bikes.service.BicicletaService;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -106,5 +108,43 @@ class BicicletaControllerTest {
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].codigo").value("BK01"));
+    }
+
+    @Test
+    void updateStatusDelegaAoServicoERetorna200() throws Exception {
+        when(bicicletaService.updateStatus("BK01", "MANUTENCAO"))
+                .thenReturn(new BicicletaResponseDTO(1L, "BK01", "Caloi Elite", "MANUTENCAO"));
+
+        mockMvc.perform(patch(URL + "/BK01/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"MANUTENCAO\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MANUTENCAO"));
+
+        verify(bicicletaService).updateStatus("BK01", "MANUTENCAO");
+    }
+
+    @Test
+    void updateStatusInvalidoRetorna422SemChamarServico() throws Exception {
+        mockMvc.perform(patch(URL + "/BK01/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ALUGADA\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors.status").exists());
+
+        verify(bicicletaService, never()).updateStatus(any(), any());
+    }
+
+    @Test
+    void updateStatusDeBicicletaAlugadaRetorna409() throws Exception {
+        when(bicicletaService.updateStatus("BK01", "DISPONIVEL")).thenThrow(
+                new BicicletaIndisponivelException("Bicicleta com código 'BK01' está alugada e só será liberada na devolução"));
+
+        mockMvc.perform(patch(URL + "/BK01/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISPONIVEL\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("Bicicleta com código 'BK01' está alugada e só será liberada na devolução"));
     }
 }

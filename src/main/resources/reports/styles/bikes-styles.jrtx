@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Arquivo de estilização compartilhado por todos os relatórios da aplicação (formato JasperReports 7).
+  Carregado pelo JasperService e injetado nos relatórios via parâmetro REPORT_STYLES,
+  para que a identidade visual (cores, fontes, zebra, bordas) fique em um único lugar.
+
+  Observação: condições de estilos externos não são compiladas, só podem referenciar
+  diretamente um parâmetro, campo ou variável. Por isso os relatórios expõem as variáveis
+  booleanas ZEBRA (linha par) e LOCACAO_ATIVA (status ATIVA) usadas abaixo.
+-->
+<jasperTemplate>
+
+    <!-- Fonte base de todos os textos. DejaVu Sans vem do módulo jasperreports-fonts
+         e é embutida no PDF, garantindo acentuação correta em qualquer ambiente. -->
+    <style name="Base" default="true" fontName="DejaVu Sans" fontSize="9.0" forecolor="#333333" pdfEncoding="Identity-H" pdfEmbedded="true"/>
+
+    <!-- Cabeçalho do relatório -->
+    <style name="Title" style="Base" fontSize="20.0" bold="true" forecolor="#1B5E20"/>
+    <style name="Subtitle" style="Base" fontSize="10.0" forecolor="#616161"/>
+
+    <!-- Cabeçalho das colunas -->
+    <style name="ColumnHeader" style="Base" mode="Opaque" backcolor="#2E7D32" forecolor="#FFFFFF" fontSize="9.0" bold="true" vTextAlign="Middle">
+        <box leftPadding="4" rightPadding="4">
+            <pen lineWidth="0.5" lineColor="#1B5E20"/>
+        </box>
+    </style>
+
+    <!-- Linhas de detalhe com efeito zebra (linhas pares em verde claro) -->
+    <style name="Detail" style="Base" mode="Opaque" backcolor="#FFFFFF" vTextAlign="Middle">
+        <box leftPadding="4" rightPadding="4">
+            <bottomPen lineWidth="0.25" lineColor="#BDBDBD"/>
+        </box>
+        <conditionalStyle mode="Opaque" backcolor="#F1F8E9">
+            <conditionExpression><![CDATA[$V{ZEBRA}]]></conditionExpression>
+        </conditionalStyle>
+    </style>
+    <style name="DetailNumber" style="Detail" hTextAlign="Right"/>
+    <style name="DetailCenter" style="Detail" hTextAlign="Center"/>
+
+    <!-- Status: destaca em laranja as locações em andamento -->
+    <style name="DetailStatus" style="DetailCenter" bold="true" forecolor="#2E7D32">
+        <conditionalStyle forecolor="#E65100">
+            <conditionExpression><![CDATA[$V{LOCACAO_ATIVA}]]></conditionExpression>
+        </conditionalStyle>
+    </style>
+
+    <!-- Rodapé e totais -->
+    <style name="Footer" style="Base" fontSize="8.0" forecolor="#757575"/>
+    <style name="Total" style="Base" mode="Opaque" backcolor="#E8F5E9" bold="true" vTextAlign="Middle">
+        <box leftPadding="4" rightPadding="4">
+            <topPen lineWidth="1.0" lineColor="#2E7D32"/>
+        </box>
+    </style>
+    <style name="TotalNumber" style="Total" hTextAlign="Right"/>
+
+    <!-- Mensagem exibida quando não há registros -->
+    <style name="NoData" style="Base" fontSize="11.0" italic="true" forecolor="#9E9E9E" hTextAlign="Center" vTextAlign="Middle"/>
+
+</jasperTemplate>

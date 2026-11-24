@@ -25,9 +25,12 @@ import java.util.List;
 @Service
 public class ClienteService {
 
+    public static final String RELATORIO_JASPER = "clientes-bikes";
+
     private final ClienteRepository clienteRepository;
     private final ClienteMapper clienteMapper;
     private final UsuarioService usuarioService;
+    private final JasperService jasperService;
 
     public ClienteResponseDTO create(ClienteRequestDTO clienteRequestDTO) {
         Usuario usuario = usuarioAutenticado();
@@ -69,11 +72,33 @@ public class ClienteService {
         return clienteMapper.toResponse(clientes);
     }
 
+    public byte[] getRelatorioPdf() {
+        return jasperService.generatePdf(RELATORIO_JASPER, "Relatório de Clientes",
+                "Relação de todos os clientes cadastrados", getAll());
+    }
+
+    @Transactional
+    public ClienteResponseDTO getDetalhes() {
+        return clienteMapper.toResponse(buscarClienteAutenticado());
+    }
+
+    @Transactional
+    public Cliente buscarClienteAutenticado() {
+        Usuario usuario = usuarioAutenticado();
+        log.debug("Buscando cliente do usuário autenticado: usuarioId={}", usuario.getId());
+        return clienteRepository.findByUsuarioId(usuario.getId()).orElseThrow(
+                () -> {
+                    log.warn("Usuário sem cadastro de cliente: usuarioId={}", usuario.getId());
+                    return new EntityNotFoundException("Usuário autenticado não possui cadastro de cliente");
+                }
+        );
+    }
+
     private Usuario usuarioAutenticado() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof JwtUserDetails details)) {
-            log.warn("Cadastro de cliente sem usuário autenticado");
+            log.warn("Operação de cliente sem usuário autenticado");
             throw new AccessDeniedException("Usuário não autenticado");
         }
         return usuarioService.buscarPorNome(details.getUsername());

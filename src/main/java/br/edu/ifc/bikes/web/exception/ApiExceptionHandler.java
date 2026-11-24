@@ -1,9 +1,12 @@
 package br.edu.ifc.bikes.web.exception;
 
+import br.edu.ifc.bikes.exception.BicicletaIndisponivelException;
 import br.edu.ifc.bikes.exception.BicicletaUniqueViolationException;
 import br.edu.ifc.bikes.exception.ClienteUniqueViolationException;
 import br.edu.ifc.bikes.exception.EntityNotFoundException;
+import br.edu.ifc.bikes.exception.LocacaoInvalidaException;
 import br.edu.ifc.bikes.exception.PasswordInvalidException;
+import br.edu.ifc.bikes.exception.RelatorioException;
 import br.edu.ifc.bikes.exception.UsernameUniqueViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +72,30 @@ public class ApiExceptionHandler {
                 .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
     }
 
+    @ExceptionHandler(BicicletaIndisponivelException.class)
+    public ResponseEntity<ErrorMessage> bicicletaIndisponivelException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.warn("Bicicleta indisponível em {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
+    @ExceptionHandler(LocacaoInvalidaException.class)
+    public ResponseEntity<ErrorMessage> locacaoInvalidaException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.warn("Locação inválida em {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorMessage> entityNotFoundException(
             RuntimeException ex,
@@ -79,6 +106,18 @@ public class ApiExceptionHandler {
                 .status(HttpStatus.NOT_FOUND)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ErrorMessage(request, HttpStatus.NOT_FOUND, ex.getMessage()));
+    }
+
+    @ExceptionHandler(RelatorioException.class)
+    public ResponseEntity<ErrorMessage> relatorioException(
+            RuntimeException ex,
+            HttpServletRequest request) {
+
+        log.error("Falha ao gerar relatório em {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorMessage(request, HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordInvalidException.class)
