@@ -126,7 +126,7 @@ class ClienteControllerTest {
         mockMvc.perform(get(URL + "/relatorio"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=clientes-")))
+                .andExpect(header().string("Content-Disposition", startsWith("attachment; filename=\"clientes-")))
                 .andExpect(content().bytes(pdf));
     }
 

@@ -261,11 +261,16 @@ Todo usuário criado pela API nasce como `CLIENTE`. Para os fluxos de administra
 {"username":"admin@bikes.com","password":"123456"}
 ```
 
-2. Promova-o no MySQL do compose (a senha do `root` é a `MYSQL_ROOT_PASSWORD` do seu `.env`):
+2. Promova-o no MySQL do compose (a senha do `root` é a `MYSQL_ROOT_PASSWORD` do [`.env`](.env), `root` no ambiente de avaliação). O comando abaixo funciona tanto no bash quanto no PowerShell — em uma única linha e sem `;` dentro do `-e`, que o PowerShell corta:
 
 ```bash
-docker compose exec mysql mysql -uroot -p bikes \
-  -e "UPDATE usuarios SET role='ROLE_ADMIN' WHERE username='admin@bikes.com';"
+docker compose exec mysql mysql -uroot -proot bikes -e "UPDATE usuarios SET role='ROLE_ADMIN' WHERE username='admin@bikes.com'"
+```
+
+Para conferir:
+
+```bash
+docker compose exec mysql mysql -uroot -proot bikes -e "SELECT id, username, role FROM usuarios"
 ```
 
 > O perfil é lido do banco a cada requisição, então um token já emitido para esse usuário passa a valer como `ADMIN` imediatamente — não é preciso autenticar de novo.
@@ -376,7 +381,7 @@ Troque para o token do **admin**:
 
 ![Swagger — relatório JSON](docs/evidencias/swagger-09-relatorio-json.png)
 
-3. **Locacoes → `GET /api/v1/locacoes/relatorio/pdf`** → `200` com `content-type: application/pdf` e `content-disposition: inline; filename=locacoes-<timestamp>.pdf` nos *Response headers*. Como o corpo é binário, o Swagger mostra o conteúdo bruto (`%PDF-1.5 ...`) e o botão **Download** para salvar o arquivo. O mesmo vale para **Clientes → `GET /api/v1/clientes/relatorio`**.
+3. **Locacoes → `GET /api/v1/locacoes/relatorio/pdf`** → `200` com `content-type: application/pdf` e `content-disposition: attachment; filename="locacoes-<timestamp>.pdf"` nos *Response headers*. Por ser um anexo, o Swagger exibe o link **Download file** para salvar o PDF (sem o `attachment`, ele despejaria os bytes como texto com o aviso *Unrecognized response type*). O mesmo vale para **Clientes → `GET /api/v1/clientes/relatorio`**.
 
 ![Swagger — relatório PDF](docs/evidencias/swagger-10-relatorio-pdf.png)
 
