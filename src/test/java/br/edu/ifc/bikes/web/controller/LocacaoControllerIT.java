@@ -286,7 +286,7 @@ class LocacaoControllerIT {
                         .header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=locacoes-")))
+                .andExpect(header().string("Content-Disposition", startsWith("attachment; filename=\"locacoes-")))
                 .andReturn().getResponse().getContentAsByteArray();
 
         assertTrue(pdf.length > 1000);

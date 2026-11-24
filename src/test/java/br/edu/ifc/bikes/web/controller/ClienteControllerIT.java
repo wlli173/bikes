@@ -204,7 +204,7 @@ class ClienteControllerIT {
                         .header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-                .andExpect(header().string("Content-Disposition", startsWith("inline; filename=clientes-")))
+                .andExpect(header().string("Content-Disposition", startsWith("attachment; filename=\"clientes-")))
                 .andReturn().getResponse().getContentAsByteArray();
 
         assertTrue(pdf.length > 1000);

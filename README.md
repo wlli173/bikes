@@ -381,7 +381,7 @@ Troque para o token do **admin**:
 
 ![Swagger — relatório JSON](docs/evidencias/swagger-09-relatorio-json.png)
 
-3. **Locacoes → `GET /api/v1/locacoes/relatorio/pdf`** → `200` com `content-type: application/pdf` e `content-disposition: inline; filename=locacoes-<timestamp>.pdf` nos *Response headers*. Como o corpo é binário, o Swagger mostra o conteúdo bruto (`%PDF-1.5 ...`) e o botão **Download** para salvar o arquivo. O mesmo vale para **Clientes → `GET /api/v1/clientes/relatorio`**.
+3. **Locacoes → `GET /api/v1/locacoes/relatorio/pdf`** → `200` com `content-type: application/pdf` e `content-disposition: attachment; filename="locacoes-<timestamp>.pdf"` nos *Response headers*. Por ser um anexo, o Swagger exibe o link **Download file** para salvar o PDF (sem o `attachment`, ele despejaria os bytes como texto com o aviso *Unrecognized response type*). O mesmo vale para **Clientes → `GET /api/v1/clientes/relatorio`**.
 
 ![Swagger — relatório PDF](docs/evidencias/swagger-10-relatorio-pdf.png)
 

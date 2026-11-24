@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -111,9 +112,13 @@ public class ClienteController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> gerarRelatorio() {
         byte[] relatorio = clienteService.getRelatorioPdf();
+        //attachment (e não inline): o Swagger UI só exibe o link "Download file" para respostas marcadas como anexo
+        ContentDisposition anexo = ContentDisposition.attachment()
+                .filename("clientes-" + System.currentTimeMillis() + ".pdf")
+                .build();
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=clientes-" + System.currentTimeMillis() + ".pdf")
+                .header(HttpHeaders.CONTENT_DISPOSITION, anexo.toString())
                 .body(relatorio);
     }
 }
